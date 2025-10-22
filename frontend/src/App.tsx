@@ -6,9 +6,13 @@ export default function Signup() {
   const { register, handleSubmit, control } = useForm();
 
   const onSubmit = async (data: any) => {
-    // interests will be an array — optional: join into a string if your backend expects it
-    await axios.post("/api/signup", { data });
-    alert("Check your inbox for confirmation!");
+    try {
+      await axios.post("http://127.0.0.1:8000/subscribe",  data );
+      alert("Check your inbox for confirmation!");
+    } catch (error) {
+      console.error("Error submitting form:", error);
+      alert("There was an error." + (error as any).message);
+    };
   };
 
   const defaultInterests = [

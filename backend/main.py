@@ -4,6 +4,9 @@ import os
 from fastapi import FastAPI
 from email_client import EmailClient, generate_reply
 from dotenv import load_dotenv
+from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 # Load environment variables
 load_dotenv()
@@ -116,3 +119,64 @@ def health_check():
         "status": "healthy",
         "email_client": "initialized" if email_client else "not_initialized"
     }
+class SubscribeForm(BaseModel):
+    name: str
+    email: str
+    interests: list[str]
+
+@app.post("/subscribe")
+async def subscribe_user(form: SubscribeForm):
+    """Handle user subscription form submission"""
+    global email_client
+    
+    if not email_client:
+        logger.error("Email client not initialized")
+        return
+    
+    # 1. Check if email already processed
+    processed_ids = email_client.load_processed_ids()
+    if form.email in processed_ids:
+        return {"status": "already_registered"}
+
+    # 2. Save email as processed
+    email_client.save_processed_id(form.email)
+
+    # 3. Generate welcome email
+    welcome_body = f"""Hi {form.name},
+
+Thanks for subscribing! Your interests: {', '.join(form.interests)}.
+
+Welcome aboard!
+
+Best,
+Alan
+"""
+    # 4. Send email (async compatible)
+    success = await email_client.send_reply(
+        to_email=form.email,
+        subject="Welcome to Alan's Newsletter",
+        body=welcome_body
+    )
+
+    return {"status": "success" if success else "failed"}
+
+@app.get("/processed_emails")
+def get_processed_emails():
+
+    global email_client
+
+    if not email_client:
+        logger.error("Email client not initialized")
+        return
+
+    """Return the list of processed email IDs"""
+    processed_ids = email_client.load_processed_ids()
+    return JSONResponse(content={"processed_ids": processed_ids})
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],  # React dev server
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)

@@ -5,6 +5,7 @@
 processed_messages.json
 
 # Python
+.venv
 __pycache__/
 *.py[cod]
 *$py.class
