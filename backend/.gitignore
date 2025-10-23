@@ -3,6 +3,7 @@
 
 # Processed messages tracking
 processed_messages.json
+subscribers.json
 
 # Python
 .venv
