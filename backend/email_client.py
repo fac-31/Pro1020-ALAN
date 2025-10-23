@@ -42,7 +42,7 @@ class EmailClient:
     def __init__(self):
         self.gmail_user = os.getenv('GMAIL_USER')
         self.gmail_app_pass = os.getenv('GMAIL_APP_PASS')
-        self.processed_file = 'processed_messages.json'
+        self.processed_messages_file = 'processed_messages.json'
         
         if not self.gmail_user or not self.gmail_app_pass:
             raise ValueError("GMAIL_USER and GMAIL_APP_PASS must be set in environment variables")
@@ -50,8 +50,8 @@ class EmailClient:
     def load_processed_ids(self) -> List[str]:
         """Load processed message IDs from JSON file"""
         try:
-            if os.path.exists(self.processed_file):
-                with open(self.processed_file, 'r') as f:
+            if os.path.exists(self.processed_messages_file):
+                with open(self.processed_messages_file, 'r') as f:
                     data = json.load(f)
                     return data.get('processed_ids', [])
             return []
@@ -67,7 +67,7 @@ class EmailClient:
                 processed_ids.append(message_id)
                 
                 data = {'processed_ids': processed_ids}
-                with open(self.processed_file, 'w') as f:
+                with open(self.processed_messages_file, 'w') as f:
                     json.dump(data, f, indent=2)
                 logger.info(f"Saved processed message ID: {message_id}")
         except Exception as e:

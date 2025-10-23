@@ -1,18 +1,27 @@
 import { useForm, Controller } from "react-hook-form";
-import axios from "axios";
 import { useState } from "react";
+import axios from "axios";
+import InterestSelector from "./components/InterestSelector";
+import UnsubscribeModal from "./components/UnsubscribeModal";
 
 export default function Signup() {
   const { register, handleSubmit, control } = useForm();
+  const [feedback, setFeedback] = useState({ type: "", message: "" });
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const onSubmit = async (data: any) => {
+    setFeedback({ type: "", message: "" });
     try {
-      await axios.post("http://127.0.0.1:8000/subscribe",  data );
-      alert("Check your inbox for confirmation!");
+      await axios.post("http://127.0.0.1:8000/subscribe", data);
+      setFeedback({ type: "success", message: "Check your inbox for confirmation!" });
     } catch (error) {
       console.error("Error submitting form:", error);
-      alert("There was an error." + (error as any).message);
-    };
+      if (axios.isAxiosError(error) && error.response) {
+        setFeedback({ type: "error", message: error.response.data.message || "An error occurred." });
+      } else {
+        setFeedback({ type: "error", message: "An error occurred." });
+      }
+    }
   };
 
   const defaultInterests = [
@@ -28,25 +37,38 @@ export default function Signup() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-6 w-full">
+      <div className="absolute top-4 right-4">
+        <button onClick={() => setIsModalOpen(true)} className="btn btn-secondary">
+          Unsubscribe
+        </button>
+      </div>
       <h1 className="text-3xl font-bold mb-10">Say hello to ALAN!</h1>
       <form
         onSubmit={handleSubmit(onSubmit)}
         className="space-y-4 h-full w-1/2 max-w-md"
       >
-        <input
-          {...register("name")}
-          type="text"
-          placeholder="Name"
-          className="input w-full"
-          required
-        />
-        <input
-          {...register("email")}
-          type="email"
-          placeholder="Email"
-          className="input w-full"
-          required
-        />
+        <div>
+          <label htmlFor="name" className="block text-sm font-medium mb-1">Name</label>
+          <input
+            {...register("name")}
+            type="text"
+            id="name"
+            placeholder="Name"
+            className="input w-full"
+            required
+          />
+        </div>
+        <div>
+          <label htmlFor="email" className="block text-sm font-medium mb-1">Email</label>
+          <input
+            {...register("email")}
+            type="email"
+            id="email"
+            placeholder="Email"
+            className="input w-full"
+            required
+          />
+        </div>
 
         {/* Replace textarea with controlled chip selector */}
         <Controller
@@ -67,81 +89,14 @@ export default function Signup() {
         <button type="submit" className="btn btn-primary w-full">
           Sign Up
         </button>
+
+        {feedback.message && (
+          <div className={`mt-4 text-center p-2 rounded-md ${feedback.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+            {feedback.message}
+          </div>
+        )}
       </form>
-    </div>
-  );
-}
-
-/* 🧩 Interest Selector Component */
-function InterestSelector({ defaultInterests, selected, onChange, error }: 
-  {defaultInterests: string[], selected: string[], onChange: (v: string[]) => void, error: any}) {
-  
-  const [interests, setInterests] = useState(defaultInterests);
-  const [newInterest, setNewInterest] = useState("");
-
-  const toggleInterest = (interest: string) => {
-    const updated = selected.includes(interest)
-      ? selected.filter((i: string) => i !== interest)
-      : [...selected, interest];
-    onChange(updated);
-  };
-
-  const addInterest = () => {
-    const value = newInterest.trim();
-    if (!value) return;
-    if (!interests.includes(value)) setInterests([...interests, value]);
-    if (!selected.includes(value)) onChange([...selected, value]);
-    setNewInterest("");
-  };
-
-  return (
-    <div>
-      <label className="block text-sm font-medium mb-1">
-        Select your interests:
-      </label>
-      <div className="flex flex-wrap gap-2 mb-2">
-        {interests.map((interest) => (
-          <button
-            type="button"
-            key={interest}
-            onClick={() => toggleInterest(interest)}
-            className={`px-3 py-1 rounded-full border transition-all ${
-              selected.includes(interest)
-                ? "bg-blue-500 text-white border-blue-500"
-                : "bg-white text-gray-700 hover:bg-gray-100 border-gray-300"
-            }`}
-          >
-            {interest}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex gap-2 mb-1">
-        <input
-          type="text"
-          placeholder="Add your own..."
-          value={newInterest}
-          onChange={(e) => setNewInterest(e.target.value)}
-              onKeyDown={(e) => {
-      if (e.key === "Enter") {
-        e.preventDefault(); // Prevent form submission
-        addInterest();      // Call your add function
-      }
-    }}
-          className="flex-1 border rounded-full px-3 py-1"
-        />
-        <button
-          type="button"
-          onClick={addInterest}
-          className="bg-blue-500 text-white rounded-full px-3 py-1"
-        >
-          Add
-        </button>
-      </div>
-
-      {error && (
-        <p className="text-red-500 text-sm mt-1">{error.message}</p>
-      )}
+      {isModalOpen && <UnsubscribeModal onClose={() => setIsModalOpen(false)} />}
     </div>
   );
 }
