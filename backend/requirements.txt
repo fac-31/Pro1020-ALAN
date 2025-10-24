@@ -15,3 +15,4 @@ python-dotenv==1.0.0
 imapclient==3.0.1
 aiosmtplib==3.0.2
 email-validator==2.1.1
+requests>=2.31.0
