@@ -3,8 +3,10 @@
 
 # Processed messages tracking
 processed_messages.json
+subscribers.json
 
 # Python
+.venv
 __pycache__/
 *.py[cod]
 *$py.class
