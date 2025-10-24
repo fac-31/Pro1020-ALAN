@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from email_client import EmailClient
 from background_tasks import email_polling_task
 from routers.subscribers import router as subscribers_router
+from routers.content import router as content_router
 
 # Load environment variables
 load_dotenv()
@@ -52,6 +53,7 @@ async def shutdown_event():
 
 # Include the subscribers router
 app.include_router(subscribers_router)
+app.include_router(content_router)
 
 @app.get("/")
 def home():
