@@ -1,12 +1,10 @@
-import asyncio
 import logging
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 
-from email_client import EmailClient
-from background_tasks import email_polling_task
+from email_client_init import initialize_email_client, shutdown_email_client
 from routers.subscribers import router as subscribers_router
 
 # Load environment variables
@@ -25,28 +23,12 @@ app = FastAPI()
 @app.on_event("startup")
 async def startup_event():
     """Initialize email client and start background polling task"""
-    try:
-        app.state.email_client = EmailClient()
-        logger.info("Email client initialized successfully")
-        
-        # Pass the client to the background task
-        app.state.polling_task = asyncio.create_task(email_polling_task(app.state.email_client))
-        logger.info("Email polling task started")
-        
-    except Exception as e:
-        logger.error(f"Failed to initialize email client: {e}")
+    await initialize_email_client(app)
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Gracefully shut down the background task"""
-    logger.info("Shutting down email polling task...")
-    task = getattr(app.state, "polling_task", None)
-    if task:
-        task.cancel()
-        try:
-            await task
-        except asyncio.CancelledError:
-            logger.info("Polling task cancelled successfully.")
+    await shutdown_email_client(app)
 
 # --- API Endpoints ---
 
