@@ -1,0 +1,30 @@
+{
+  "documents": [
+    "Alan is an AI assistant that helps with email management and provides intelligent responses using RAG technology.",
+    "Alan is an AI assistant that helps with email management and provides intelligent responses using RAG technology."
+  ],
+  "metadata": [
+    {
+      "type": "test_document",
+      "title": "Alan AI Assistant",
+      "topics": [
+        "ai",
+        "email",
+        "assistant"
+      ],
+      "doc_id": "test_doc_1",
+      "added_at": "2025-10-26T07:57:45.956684"
+    },
+    {
+      "type": "test_document",
+      "title": "Alan AI Assistant",
+      "topics": [
+        "ai",
+        "email",
+        "assistant"
+      ],
+      "doc_id": "test_doc_1",
+      "added_at": "2025-10-26T07:58:46.162201"
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 from email.message import EmailMessage
 from email.header import decode_header
 from email import message_from_bytes
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 import logging
 import re
 from .utils import clean_str
@@ -32,12 +32,20 @@ class EmailParser:
             # Extract body
             body = self.extract_email_body(msg)
             
+            # Extract attachments
+            attachments = self.extract_attachments(msg)
+            
+            # Extract links from body
+            links = self.extract_links_from_body(body)
+            
             return {
                 'sender_email': sender_info['email'],
                 'sender_name': sender_info['name'],
                 'subject': subject,
                 'body': body.strip() if body else "",
-                'message_id': msg.get('Message-ID', '')
+                'message_id': msg.get('Message-ID', ''),
+                'attachments': attachments,
+                'links': links
             }
             
         except Exception as e:
@@ -120,3 +128,56 @@ class EmailParser:
             logger.info("Single part body length: %d", len(body) if body else 0)
         
         return body
+    
+    def extract_attachments(self, msg: EmailMessage) -> List[Dict]:
+        """Extract attachment information from email message"""
+        attachments = []
+        
+        try:
+            if msg.is_multipart():
+                for part in msg.walk():
+                    if part.get_content_disposition() == 'attachment':
+                        filename = part.get_filename()
+                        content_type = part.get_content_type()
+                        
+                        if filename:
+                            # Decode filename if needed
+                            decoded_parts = decode_header(filename)
+                            filename = ''.join([
+                                part[0].decode(part[1] or 'utf-8', errors='ignore') 
+                                if isinstance(part[0], bytes) else part[0] 
+                                for part in decoded_parts
+                            ])
+                            
+                            # Get attachment content
+                            content = part.get_payload(decode=True)
+                            
+                            attachments.append({
+                                'filename': filename,
+                                'content_type': content_type,
+                                'size': len(content) if content else 0,
+                                'content': content
+                            })
+                            
+                            logger.info(f"Found attachment: {filename} ({content_type})")
+            
+            return attachments
+            
+        except Exception as e:
+            logger.error(f"Error extracting attachments: {e}")
+            return []
+    
+    def extract_links_from_body(self, body: str) -> List[str]:
+        """Extract URLs from email body"""
+        if not body:
+            return []
+        
+        # URL regex pattern
+        url_pattern = r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'
+        urls = re.findall(url_pattern, body)
+        
+        # Remove duplicates and return
+        unique_urls = list(set(urls))
+        logger.info(f"Found {len(unique_urls)} unique links in email body")
+        
+        return unique_urls

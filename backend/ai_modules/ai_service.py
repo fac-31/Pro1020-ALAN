@@ -4,6 +4,7 @@ from typing import Dict, List, Optional
 from openai import OpenAI
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
+from rag_engine import RAGEngine
 
 logger = logging.getLogger(__name__)
 
@@ -23,12 +24,15 @@ class AIService:
             api_key=self.openai_api_key
         )
         
-        logger.info("AI Service initialized successfully")
+        # Initialize RAG engine
+        self.rag_engine = RAGEngine()
+        
+        logger.info("AI Service initialized successfully with RAG engine")
     
     def generate_email_reply(self, sender_name: str, sender_email: str, subject: str, body: str, 
                            user_interests: List[str] = None, conversation_history: List[Dict] = None) -> str:
         """
-        Generate an AI-powered email reply using OpenAI and LangChain
+        Generate an AI-powered email reply using OpenAI, LangChain, and RAG
         
         Args:
             sender_name: Name of the person sending the email
@@ -42,8 +46,18 @@ class AIService:
             Generated reply text
         """
         try:
+            # Extract query from email content
+            query = self._extract_query_from_email(subject, body)
+            
+            # Get relevant context using RAG
+            context = self.rag_engine.get_context_for_query(
+                query=query,
+                user_interests=user_interests,
+                n_results=5
+            )
+            
             # Create system prompt for Alan's personality
-            system_prompt = self._create_system_prompt(user_interests)
+            system_prompt = self._create_system_prompt(user_interests, context)
             
             # Create human message with email context
             human_message = self._create_human_message(sender_name, subject, body, conversation_history)
@@ -59,7 +73,7 @@ class AIService:
             # Extract the reply content
             reply = response.content.strip()
             
-            logger.info(f"Generated AI reply for {sender_name}: {reply[:100]}...")
+            logger.info(f"Generated RAG-powered reply for {sender_name}: {reply[:100]}...")
             return reply
             
         except Exception as e:
@@ -67,11 +81,31 @@ class AIService:
             # Fallback to a simple reply if AI fails
             return self._generate_fallback_reply(sender_name, subject)
     
-    def _create_system_prompt(self, user_interests: List[str] = None) -> str:
+    def _extract_query_from_email(self, subject: str, body: str) -> str:
+        """Extract a search query from email subject and body"""
+        # Combine subject and body for better context
+        query = f"{subject} {body}".strip()
+        
+        # If the email is asking for specific information, use that as the query
+        if any(keyword in query.lower() for keyword in ['summarize', 'summary', 'news', 'latest', 'recent', 'today']):
+            return query
+        
+        # If asking about specific topics, extract those
+        if any(keyword in query.lower() for keyword in ['ai', 'technology', 'startup', 'finance', 'health']):
+            return query
+        
+        # Default to the full email content
+        return query
+    
+    def _create_system_prompt(self, user_interests: List[str] = None, context: str = "") -> str:
         """Create the system prompt that defines Alan's personality and behavior"""
         interests_context = ""
         if user_interests:
             interests_context = f"\nThe user is interested in: {', '.join(user_interests)}. Reference these interests when relevant."
+        
+        context_instruction = ""
+        if context and context != "No relevant information found in the knowledge base.":
+            context_instruction = f"\n\nIMPORTANT: Use the following information from your knowledge base to provide accurate, up-to-date responses:\n\n{context}\n\nBase your response on this information when relevant."
         
         return f"""You are Alan, an AI assistant designed to help people with their emails and daily tasks. 
 
@@ -83,6 +117,7 @@ Your personality:
 
 Your capabilities:
 - Answer questions about technology, productivity, and general topics
+- Provide summaries of news, articles, and documents
 - Help with email organization and management
 - Provide helpful suggestions and advice
 - Engage in friendly conversation
@@ -94,9 +129,10 @@ Guidelines for email replies:
 - Use a warm, professional tone
 - Sign off as "Best regards, Alan"
 - If the email is asking for help, offer specific suggestions
+- If it's asking for summaries or information, provide accurate details
 - If it's just a greeting, respond warmly and ask how you can help
 
-{interests_context}
+{interests_context}{context_instruction}
 
 Remember: You're Alan, the AI assistant. Be helpful, friendly, and professional in all your responses."""
     
