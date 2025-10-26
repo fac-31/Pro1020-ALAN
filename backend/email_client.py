@@ -1,15 +1,14 @@
+"""
+Email Client - Main orchestrator for email operations
+"""
+
 import logging
-import os
 from typing import List, Dict
-from dotenv import load_dotenv
 from email_modules.connection import EmailConnection
 from email_modules.parser import EmailParser
 from email_modules.message_tracker import MessageTracker
 from email_modules.reply_generator import ReplyGenerator
 from email_modules.utils import clean_str, setup_utf8_encoding
-
-# Load environment variables
-load_dotenv()
 
 # Setup UTF-8 encoding
 setup_utf8_encoding()
@@ -20,11 +19,13 @@ logger = logging.getLogger(__name__)
 
 class EmailClient:
     def __init__(self):
-        self.gmail_user = os.getenv('GMAIL_USER')
-        self.gmail_app_pass = os.getenv('GMAIL_APP_PASS')
+        from core.config import settings
+        
+        self.gmail_user = settings.gmail_user
+        self.gmail_app_pass = settings.gmail_app_pass
         
         if not self.gmail_user or not self.gmail_app_pass:
-            raise ValueError("GMAIL_USER and GMAIL_APP_PASS must be set in environment variables")
+            raise ValueError("Gmail credentials not configured")
         
         # Initialize components
         self.connection = EmailConnection(self.gmail_user, self.gmail_app_pass)
@@ -99,7 +100,7 @@ class EmailClient:
     
     async def send_reply(self, to_email: str, subject: str, body: str, original_subject: str = "") -> bool:
         """Send email reply via SMTP"""
-        return self.connection.send_email(to_email, subject, body, original_subject)
+        return await self.connection.send_email(to_email, subject, body, original_subject)
     
     def mark_as_read(self, email_id: str) -> bool:
         """Mark email as read in Gmail"""
