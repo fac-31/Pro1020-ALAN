@@ -6,6 +6,20 @@
       "content": "Hello Alan!",
       "subject": "Test Subject",
       "message_id": ""
+    },
+    {
+      "timestamp": "2025-10-26T08:24:02.887274",
+      "type": "incoming",
+      "content": "Subject: Test Subject\n\nTest message body",
+      "subject": "Test Subject",
+      "message_id": ""
+    },
+    {
+      "timestamp": "2025-10-26T08:24:02.887797",
+      "type": "outgoing",
+      "content": "Hello Test User!\n\nThank you for reaching out. How can I assist you today? Feel free to let me know how I can help with your email or any other tasks you have in mind.\n\nBest regards,\nAlan",
+      "subject": "Re: Test Subject",
+      "message_id": ""
     }
   ],
   "afabgirl4@gmail.com": [
@@ -20,6 +34,20 @@
       "timestamp": "2025-10-26T07:46:47.254563",
       "type": "outgoing",
       "content": "Hi Anna,\n\nThat's great to hear that you're interested in learning more about RAG! RAG stands for Red, Amber, Green and is commonly used in project management to indicate the status of tasks or projects. \n\nTo give you a brief overview, in RAG status:\n- Red indicates tasks that are behind schedule or facing significant issues.\n- Amber signifies tasks that are at risk but can still be recovered.\n- Green shows tasks that are on track and progressing well.\n\nIf you'd like to delve deeper into RAG and its application in project management, I can suggest some resources or provide more information. Just let me know how I can assist you further!\n\nBest regards,\nAlan",
+      "subject": "Re: ",
+      "message_id": ""
+    },
+    {
+      "timestamp": "2025-10-26T08:26:26.404178",
+      "type": "incoming",
+      "content": "Subject: \n\nHow do I learn more about python servers",
+      "subject": "",
+      "message_id": ""
+    },
+    {
+      "timestamp": "2025-10-26T08:26:26.404708",
+      "type": "outgoing",
+      "content": "Hi Anna,\n\nLearning about Python servers is a great way to enhance your programming skills. To get started, you can explore online tutorials, courses on platforms like Coursera or Udemy, or even consider reading books like \"Flask Web Development\" by Miguel Grinberg. Additionally, practicing by setting up your own small server projects can be very beneficial.\n\nIf you have any specific questions or need further guidance on Python servers, feel free to ask. I'm here to help you with any information you need to deepen your understanding of Python servers.\n\nBest regards,\nAlan",
       "subject": "Re: ",
       "message_id": ""
     }

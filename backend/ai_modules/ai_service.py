@@ -4,6 +4,8 @@ from typing import Dict, List, Optional
 from openai import OpenAI
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.tracers import LangChainTracer
+from langsmith import Client
 from rag_engine import RAGEngine
 
 logger = logging.getLogger(__name__)
@@ -17,17 +19,49 @@ class AIService:
         # Initialize OpenAI client
         self.client = OpenAI(api_key=self.openai_api_key)
         
-        # Initialize LangChain ChatOpenAI
+        # Initialize LangSmith tracking (optional)
+        self.langsmith_client = None
+        self.tracer = None
+        self._setup_langsmith_tracking()
+        
+        # Initialize LangChain ChatOpenAI with optional tracing
+        callbacks = [self.tracer] if self.tracer else []
         self.llm = ChatOpenAI(
             model="gpt-3.5-turbo",
             temperature=0.7,
-            api_key=self.openai_api_key
+            api_key=self.openai_api_key,
+            callbacks=callbacks
         )
         
         # Initialize RAG engine
         self.rag_engine = RAGEngine()
         
-        logger.info("AI Service initialized successfully with RAG engine")
+        logger.info("AI Service initialized successfully with RAG engine and LangSmith tracking")
+    
+    def _setup_langsmith_tracking(self):
+        """Setup LangSmith tracking if API key is provided"""
+        langsmith_api_key = os.getenv('LANGSMITH_API_KEY')
+        langsmith_project = os.getenv('LANGSMITH_PROJECT', 'alan-ai-assistant')
+        
+        if langsmith_api_key:
+            try:
+                # Initialize LangSmith client
+                self.langsmith_client = Client(api_key=langsmith_api_key)
+                
+                # Create tracer for LangChain
+                self.tracer = LangChainTracer(
+                    project_name=langsmith_project,
+                    client=self.langsmith_client
+                )
+                
+                logger.info(f"LangSmith tracking enabled for project: {langsmith_project}")
+                
+            except Exception as e:
+                logger.warning(f"Failed to initialize LangSmith tracking: {e}")
+                self.langsmith_client = None
+                self.tracer = None
+        else:
+            logger.info("LangSmith tracking disabled (LANGSMITH_API_KEY not set)")
     
     def generate_email_reply(self, sender_name: str, sender_email: str, subject: str, body: str, 
                            user_interests: List[str] = None, conversation_history: List[Dict] = None) -> str:
@@ -62,13 +96,28 @@ class AIService:
             # Create human message with email context
             human_message = self._create_human_message(sender_name, subject, body, conversation_history)
             
-            # Generate response using LangChain
+            # Generate response using LangChain with tracking metadata
             messages = [
                 SystemMessage(content=system_prompt),
                 HumanMessage(content=human_message)
             ]
             
-            response = self.llm.invoke(messages)
+            # Add metadata for LangSmith tracking
+            run_metadata = {
+                "sender_name": sender_name,
+                "sender_email": sender_email,
+                "subject": subject,
+                "user_interests": user_interests or [],
+                "context_documents": len(context) if context else 0,
+                "conversation_history_length": len(conversation_history) if conversation_history else 0
+            }
+            
+            # Generate response with metadata
+            response = self.llm.invoke(
+                messages,
+                metadata=run_metadata,
+                tags=["email_reply", "rag_powered"]
+            )
             
             # Extract the reply content
             reply = response.content.strip()

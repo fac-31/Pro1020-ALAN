@@ -11,9 +11,9 @@ async def initialize_email_client(app):
         app.state.email_client = EmailClient()
         logger.info("Email client initialized successfully")
         
-        # Pass the client and RAG engine to the background task
-        rag_engine = getattr(app.state, 'rag_engine', None)
-        app.state.polling_task = asyncio.create_task(email_polling_task(app.state.email_client, rag_engine))
+        # Pass the client and RAG service to the background task
+        rag_service = getattr(app.state, 'rag_service', None)
+        app.state.polling_task = asyncio.create_task(email_polling_task(app.state.email_client, rag_service))
         logger.info("Email polling task started with RAG integration")
         
     except Exception as e:

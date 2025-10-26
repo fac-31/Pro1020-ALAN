@@ -7,6 +7,8 @@ def clean_str(s):
         return ""
     if isinstance(s, bytes):
         s = s.decode("utf-8", errors="replace")
+    # Convert to string if not already
+    s = str(s)
     # Normalize weird spaces, accents, etc.
     s = unicodedata.normalize("NFKC", s).replace("\xa0", " ")
     return s

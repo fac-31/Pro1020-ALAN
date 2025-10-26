@@ -1,51 +1,69 @@
 import asyncio
 import logging
+from datetime import datetime
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from dotenv import load_dotenv
 
+from core.config import settings
+from core.exceptions import convert_to_http_exception
 from email_client_init import initialize_email_client, shutdown_email_client
 from routers.subscribers import router as subscribers_router
 from routers.rag import router as rag_router
-from rag_engine import RAGEngine
-from daily_digest import DailyDigestService
-from ai_modules.ai_service import AIService
-from email_modules.connection import EmailConnection
-
-# Load environment variables
-load_dotenv()
+from services.rag_service import RAGService
+from services.digest_service import DailyDigestService
+from services.ai_service import AIService
+from services.email_service import EmailService
+from services.content_service import ContentEvaluationService
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=getattr(logging, settings.log_level),
+    format=settings.log_format
 )
 logger = logging.getLogger(__name__)
 
 # --- FastAPI App Setup ---
-app = FastAPI()
+app = FastAPI(
+    title=settings.app_name,
+    version=settings.app_version,
+    debug=settings.debug
+)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=settings.cors_credentials,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize all services"""
+    """Initialize all services with enhanced error handling"""
     try:
-        # Initialize email client
-        await initialize_email_client(app)
+        # Initialize email service
+        app.state.email_service = EmailService()
+        logger.info("Email service initialized successfully")
         
-        # Initialize RAG engine
-        app.state.rag_engine = RAGEngine()
-        logger.info("RAG engine initialized successfully")
+        # Initialize RAG service
+        app.state.rag_service = RAGService()
+        logger.info("RAG service initialized successfully")
         
         # Initialize AI service
         app.state.ai_service = AIService()
         logger.info("AI service initialized successfully")
         
+        # Initialize content evaluation service
+        app.state.content_service = ContentEvaluationService()
+        logger.info("Content evaluation service initialized successfully")
+        
         # Initialize daily digest service
         app.state.digest_service = DailyDigestService(
-            email_client=app.state.email_client.connection,
+            email_service=app.state.email_service,
             ai_service=app.state.ai_service,
-            rag_engine=app.state.rag_engine
+            rag_service=app.state.rag_service
         )
         logger.info("Daily digest service initialized successfully")
         
@@ -53,8 +71,14 @@ async def startup_event():
         app.state.digest_task = asyncio.create_task(app.state.digest_service.daily_digest_task())
         logger.info("Daily digest task started")
         
+        # Initialize email client for backward compatibility
+        await initialize_email_client(app)
+        
     except Exception as e:
         logger.error(f"Failed to initialize services: {e}")
+        # Convert to HTTP exception for better error handling
+        http_exc = convert_to_http_exception(e)
+        raise http_exc
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -84,9 +108,12 @@ app.include_router(rag_router)
 
 @app.get("/")
 def home():
+    """Home endpoint with application information"""
     return {
-        "message": "Alan's AI Assistant Backend", 
+        "message": settings.app_name,
+        "version": settings.app_version,
         "status": "running",
+        "environment": settings.environment,
         "features": [
             "Email-based AI assistant",
             "RAG-powered responses", 
@@ -95,23 +122,56 @@ def home():
             "News article ingestion",
             "AI content evaluation",
             "Email attachment processing",
-            "Link content extraction"
+            "Link content extraction",
+            "LangSmith tracking",
+            "Enhanced error handling"
         ]
     }
 
 @app.get("/health")
 def health_check():
-    """Health check endpoint"""
-    return {
-        "status": "healthy", 
-        "email_client": "initialized" if getattr(app.state, "email_client", None) else "not_initialized",
-        "rag_engine": "initialized" if getattr(app.state, "rag_engine", None) else "not_initialized",
-        "ai_service": "initialized" if getattr(app.state, "ai_service", None) else "not_initialized",
-        "digest_service": "initialized" if getattr(app.state, "digest_service", None) else "not_initialized",
-        "content_evaluation": "enabled",
-        "attachment_processing": "enabled",
-        "link_extraction": "enabled"
-    }
+    """Enhanced health check endpoint with service status"""
+    try:
+        services = {}
+        
+        # Check each service status
+        if hasattr(app.state, "email_service"):
+            services["email_service"] = app.state.email_service.get_service_status()
+        
+        if hasattr(app.state, "rag_service"):
+            services["rag_service"] = app.state.rag_service.get_service_status()
+        
+        if hasattr(app.state, "ai_service"):
+            services["ai_service"] = app.state.ai_service.get_service_status()
+        
+        if hasattr(app.state, "content_service"):
+            services["content_service"] = app.state.content_service.get_service_status()
+        
+        if hasattr(app.state, "digest_service"):
+            services["digest_service"] = app.state.digest_service.get_service_status()
+        
+        # Determine overall health
+        overall_status = "healthy"
+        for service_name, service_status in services.items():
+            if service_status.get("status") != "healthy":
+                overall_status = "degraded"
+                break
+        
+        return {
+            "status": overall_status,
+            "version": settings.app_version,
+            "environment": settings.environment,
+            "services": services,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return {
+            "status": "unhealthy",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
 
 @app.get("/processed_messages")
 def get_processed_messages():

@@ -7,6 +7,14 @@
         "Health",
         "Technology"
       ]
+    },
+    {
+      "name": "Test User",
+      "email": "test@example.com",
+      "interests": [
+        "ai",
+        "technology"
+      ]
     }
   ]
 }

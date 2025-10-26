@@ -2,20 +2,20 @@ import asyncio
 import logging
 import os
 from email_client import EmailClient, generate_reply
-from ai_modules.content_evaluator import ContentEvaluator
-from rag_engine import RAGEngine
+from services.content_service import ContentEvaluationService
+from services.rag_service import RAGService
 
 logger = logging.getLogger(__name__)
 
-async def email_polling_task(email_client: EmailClient, rag_engine: RAGEngine = None):
-    """Background task to poll for emails and send replies"""
+async def email_polling_task(email_client: EmailClient, rag_service: RAGService = None):
+    """Background task to poll for emails and send replies with enhanced error handling"""
     if not email_client:
         logger.error("Email client not provided to polling task.")
         return
     
-    # Initialize content evaluator
-    content_evaluator = ContentEvaluator()
-    logger.info("Content evaluator initialized")
+    # Initialize content evaluation service
+    content_evaluator = ContentEvaluationService()
+    logger.info("Content evaluation service initialized")
     
     polling_interval = int(os.getenv('POLLING_INTERVAL', 300))
     
@@ -35,8 +35,7 @@ async def email_polling_task(email_client: EmailClient, rag_engine: RAGEngine = 
                         continue
                     
                     # Evaluate content for potential addition to knowledge base
-                    evaluation = await asyncio.to_thread(
-                        content_evaluator.evaluate_email_content,
+                    evaluation = await content_evaluator.evaluate_email_content(
                         sender_email=email['sender_email'],
                         subject=email['subject'],
                         body=email['body'],
@@ -45,10 +44,10 @@ async def email_polling_task(email_client: EmailClient, rag_engine: RAGEngine = 
                     )
                     
                     # Add content to knowledge base if evaluation suggests it
-                    if evaluation.should_add and evaluation.confidence > 0.6 and rag_engine:
+                    if evaluation.should_add and evaluation.confidence > 0.6 and rag_service:
                         try:
                             # Add as user document
-                            success_add = rag_engine.add_user_document(
+                            success_add = rag_service.add_user_document(
                                 content=evaluation.extracted_content,
                                 title=f"Email from {email['sender_name']}: {email['subject']}",
                                 topics=evaluation.topics

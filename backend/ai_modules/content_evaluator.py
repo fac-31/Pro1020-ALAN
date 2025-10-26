@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from openai import OpenAI
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.tracers import LangChainTracer
+from langsmith import Client
 
 logger = logging.getLogger(__name__)
 
@@ -39,19 +41,48 @@ class ContentEvaluator:
         # Initialize OpenAI client
         self.client = OpenAI(api_key=self.openai_api_key)
         
-        # Initialize LangChain LLM
+        # Initialize LangSmith tracking (optional)
+        self.langsmith_client = None
+        self.tracer = None
+        self._setup_langsmith_tracking()
+        
+        # Initialize LangChain LLM with optional tracing
+        callbacks = [self.tracer] if self.tracer else []
         self.llm = ChatOpenAI(
             model="gpt-3.5-turbo",
             temperature=0.3,  # Lower temperature for more consistent evaluation
-            api_key=self.openai_api_key
+            api_key=self.openai_api_key,
+            callbacks=callbacks
         )
         
-        logger.info("Content Evaluator initialized successfully")
+        logger.info("Content Evaluator initialized successfully with LangSmith tracking")
     
-    def evaluate_email_content(self, 
-                             sender_email: str,
-                             subject: str, 
-                             body: str,
+    def _setup_langsmith_tracking(self):
+        """Setup LangSmith tracking if API key is provided"""
+        langsmith_api_key = os.getenv('LANGSMITH_API_KEY')
+        langsmith_project = os.getenv('LANGSMITH_PROJECT', 'alan-content-evaluation')
+        
+        if langsmith_api_key:
+            try:
+                # Initialize LangSmith client
+                self.langsmith_client = Client(api_key=langsmith_api_key)
+                
+                # Create tracer for LangChain
+                self.tracer = LangChainTracer(
+                    project_name=langsmith_project,
+                    client=self.langsmith_client
+                )
+                
+                logger.info(f"LangSmith tracking enabled for content evaluation project: {langsmith_project}")
+                
+            except Exception as e:
+                logger.warning(f"Failed to initialize LangSmith tracking: {e}")
+                self.langsmith_client = None
+                self.tracer = None
+        else:
+            logger.info("LangSmith tracking disabled for content evaluation (LANGSMITH_API_KEY not set)")
+    
+    def evaluate_email_content(self, sender_email: str, subject: str, body: str,
                              attachments: List[Dict] = None,
                              links: List[str] = None) -> ContentEvaluation:
         """
@@ -258,7 +289,22 @@ Evaluate this content for addition to Alan's knowledge base.
                 HumanMessage(content=human_message)
             ]
             
-            response = self.llm.invoke(messages)
+            # Add metadata for LangSmith tracking
+            run_metadata = {
+                "sender_email": sender_email,
+                "subject": subject,
+                "content_length": len(extracted_content),
+                "attachments_count": len(attachments) if attachments else 0,
+                "links_count": len(links) if links else 0,
+                "evaluation_type": "content_evaluation"
+            }
+            
+            # Generate evaluation with metadata
+            response = self.llm.invoke(
+                messages,
+                metadata=run_metadata,
+                tags=["content_evaluation", "rag_decision"]
+            )
             
             # Parse JSON response
             import json
