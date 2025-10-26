@@ -1,0 +1,27 @@
+{
+  "test@example.com": [
+    {
+      "timestamp": "2025-10-26T07:44:04.420100",
+      "type": "incoming",
+      "content": "Hello Alan!",
+      "subject": "Test Subject",
+      "message_id": ""
+    }
+  ],
+  "afabgirl4@gmail.com": [
+    {
+      "timestamp": "2025-10-26T07:46:47.254000",
+      "type": "incoming",
+      "content": "Subject: \n\nHey I want to learn more about RAG this week,",
+      "subject": "",
+      "message_id": ""
+    },
+    {
+      "timestamp": "2025-10-26T07:46:47.254563",
+      "type": "outgoing",
+      "content": "Hi Anna,\n\nThat's great to hear that you're interested in learning more about RAG! RAG stands for Red, Amber, Green and is commonly used in project management to indicate the status of tasks or projects. \n\nTo give you a brief overview, in RAG status:\n- Red indicates tasks that are behind schedule or facing significant issues.\n- Amber signifies tasks that are at risk but can still be recovered.\n- Green shows tasks that are on track and progressing well.\n\nIf you'd like to delve deeper into RAG and its application in project management, I can suggest some resources or provide more information. Just let me know how I can assist you further!\n\nBest regards,\nAlan",
+      "subject": "Re: ",
+      "message_id": ""
+    }
+  ]
+}

@@ -30,6 +30,7 @@ async def email_polling_task(email_client: EmailClient):
                     
                     reply_body = generate_reply(
                         email['sender_name'],
+                        email['sender_email'],
                         email['subject'],
                         email['body']
                     )

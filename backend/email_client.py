@@ -105,7 +105,7 @@ class EmailClient:
         """Mark email as read in Gmail"""
         return self.connection.mark_as_read(email_id)
 
-def generate_reply(sender_name: str, subject: str, body: str) -> str:
+def generate_reply(sender_name: str, sender_email: str, subject: str, body: str) -> str:
     """Generate a simple reply message"""
     reply_generator = ReplyGenerator()
-    return reply_generator.generate_reply(sender_name, subject, body)
+    return reply_generator.generate_reply(sender_name, sender_email, subject, body)
