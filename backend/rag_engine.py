@@ -7,6 +7,7 @@ import json
 import pickle
 from datetime import datetime
 from openai import OpenAI
+from core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,7 @@ class RAGEngine:
             persist_directory: Directory to persist FAISS data
         """
         self.persist_directory = persist_directory
-        self.openai_api_key = os.getenv('OPENAI_API_KEY')
+        self.openai_api_key = settings.openai_api_key
         
         if not self.openai_api_key:
             raise ValueError("OPENAI_API_KEY must be set in environment variables")
