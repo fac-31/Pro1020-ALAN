@@ -289,22 +289,15 @@ Evaluate this content for addition to Alan's knowledge base.
                 HumanMessage(content=human_message)
             ]
             
-            # Add metadata for LangSmith tracking
-            run_metadata = {
-                "sender_email": sender_email,
-                "subject": subject,
-                "content_length": len(extracted_content),
-                "attachments_count": len(attachments) if attachments else 0,
-                "links_count": len(links) if links else 0,
-                "evaluation_type": "content_evaluation"
-            }
-            
-            # Generate evaluation with metadata
-            response = self.llm.invoke(
-                messages,
-                metadata=run_metadata,
-                tags=["content_evaluation", "rag_decision"]
-            )
+            # Generate evaluation
+            # Note: When LangSmith tracer is enabled, passing tags/metadata causes conflicts
+            # The tracer will automatically capture the run, so we don't need to pass anything extra
+            if self.tracer:
+                # Don't pass any kwargs when tracer is enabled to avoid metadata conflicts
+                response = self.llm.invoke(messages)
+            else:
+                # When tracer is disabled, we can safely use tags
+                response = self.llm.invoke(messages, tags=["content_evaluation", "rag_decision"])
             
             # Parse JSON response
             import json
