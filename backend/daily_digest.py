@@ -144,7 +144,7 @@ P.S. Feel free to email me with any specific questions you'd like me to research
                     digest_content = await self.generate_daily_digest(user_email, user_interests)
                     
                     # Send email
-                    success = self.email_client.send_email(
+                    success = await self.email_client.send_email(
                         to_email=user_email,
                         subject="Alan's Daily Briefing ☕",
                         body=digest_content
