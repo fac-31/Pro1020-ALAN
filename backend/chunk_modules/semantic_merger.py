@@ -17,13 +17,21 @@ class SemanticChunker(BaseChunker):
         threshold_percentile: float = 75.0, # New: for percentile thresholding
         overlap: int = 1
     ):
-        self.model = SentenceTransformer(embedding_model_name)
+        # Store model name but don't load yet
+        self.embedding_model_name = embedding_model_name
+        self.model = None  # Will be loaded lazily
         self.max_chunk_tokens = max_chunk_tokens
         self.fixed_similarity_threshold = similarity_threshold # Renamed
         self.threshold_type = threshold_type
         self.threshold_percentile = threshold_percentile
         self.overlap = overlap
         self.tokenizer = tiktoken.get_encoding("cl100k_base") # Initialize tiktoken
+
+    def _get_model(self):
+        """Lazy load the SentenceTransformer model"""
+        if self.model is None:
+            self.model = SentenceTransformer(self.embedding_model_name)
+        return self.model
 
     def _calculate_token_length(self, text: str) -> int:
         """Calculate token length using tiktoken."""
@@ -42,7 +50,9 @@ class SemanticChunker(BaseChunker):
         if not sentences: # Handle empty input
             return []
 
-        sentence_embeddings = self.model.encode(sentences)
+        # Load model only when needed
+        model = self._get_model()
+        sentence_embeddings = model.encode(sentences)
 
         # Calculate dynamic threshold if type is percentile
         current_similarity_threshold = self.fixed_similarity_threshold
