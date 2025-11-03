@@ -127,23 +127,16 @@ class AIService:
                 HumanMessage(content=human_message)
             ]
             
-            # Add metadata for LangSmith tracking
-            run_metadata = {
-                "sender_name": sender_name,
-                "sender_email": sender_email,
-                "subject": subject,
-                "user_interests": user_interests or [],
-                "context_documents": len(context) if context else 0,
-                "conversation_history_length": len(conversation_history) if conversation_history else 0
-            }
-            
-            # Generate response with metadata
+            # Generate response
+            # Note: When LangSmith tracer is enabled, passing tags/metadata causes conflicts
+            # The tracer will automatically capture the run, so we don't need to pass anything extra
             logger.info(f"Calling OpenAI API for email reply (context_docs: {len(context) if context else 0})")
-            response = self.llm.invoke(
-                messages,
-                metadata=run_metadata,
-                tags=["email_reply", "rag_powered"]
-            )
+            if self.tracer:
+                # Don't pass any kwargs when tracer is enabled to avoid metadata conflicts
+                response = self.llm.invoke(messages)
+            else:
+                # When tracer is disabled, we can safely use tags
+                response = self.llm.invoke(messages, tags=["email_reply", "rag_powered"])
             
             reply_content = response.content.strip()
             logger.info(f"Successfully generated AI reply ({len(reply_content)} characters)")
