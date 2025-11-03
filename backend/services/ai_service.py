@@ -12,7 +12,7 @@ from langsmith import Client
 
 from core.config import settings
 from core.exceptions import AIServiceError, create_openai_error
-from rag_engine import RAGEngine
+from services.rag_service import RAGService
 
 logger = logging.getLogger(__name__)
 
@@ -47,8 +47,8 @@ class AIService:
                 callbacks=callbacks
             )
             
-            # Initialize RAG engine
-            self.rag_engine = RAGEngine()
+            # Initialize RAG service
+            self.rag_service = RAGService()
             
             logger.info("AI Service initialized successfully with RAG engine and LangSmith tracking")
             
@@ -101,7 +101,7 @@ class AIService:
             query = self._extract_query_from_email(subject, body)
             
             # Get relevant context from RAG
-            context = self.rag_engine.get_context_for_query(query, user_interests)
+            context = self.rag_service.get_context_for_query(query, user_interests)
             
             # Create system prompt
             system_prompt = self._create_system_prompt(user_interests, context)

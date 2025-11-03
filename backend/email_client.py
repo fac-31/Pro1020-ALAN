@@ -98,9 +98,9 @@ class EmailClient:
         logger.info("Returning %d emails", len(emails))
         return emails
     
-    async def send_reply(self, to_email: str, subject: str, body: str, original_subject: str = "") -> bool:
+    def send_reply(self, to_email: str, subject: str, body: str, original_subject: str = "") -> bool:
         """Send email reply via SMTP"""
-        return await self.connection.send_email(to_email, subject, body, original_subject)
+        return self.connection.send_email(to_email, subject, body, original_subject)
     
     def mark_as_read(self, email_id: str) -> bool:
         """Mark email as read in Gmail"""

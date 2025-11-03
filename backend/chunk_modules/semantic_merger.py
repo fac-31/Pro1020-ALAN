@@ -135,10 +135,15 @@ class SemanticChunker(BaseChunker):
                 # Decide if a new chunk should start
                 if sim < current_similarity_threshold or current_length >= self.max_chunk_tokens:
                     chunks.append({"text": current_chunk_text, "metadata": metadata.copy()})
-                    
-                    # Apply overlap for the new chunk
+
+                if current_length >= self.max_chunk_tokens:
+                    # Apply overlap only for size-based splits
                     current_chunk_sentences = current_chunk_sentences[-self.overlap:] if self.overlap > 0 else []
                     current_chunk_embs = current_chunk_embs[-self.overlap:] if self.overlap > 0 else []
+                else:
+                    # No overlap for semantic splits
+                    current_chunk_sentences = []
+                    current_chunk_embs = []
 
                 current_chunk_sentences.append(sent)
                 current_chunk_embs.append(emb)
