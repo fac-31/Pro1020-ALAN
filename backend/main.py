@@ -42,11 +42,16 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize all services with enhanced error handling"""
-    # Initialize services in background to avoid blocking server startup
+    """Initialize all services with enhanced error handling - non-blocking"""
+    logger.info("Server starting - initializing services in background...")
+    
+    # Start initialization in background task IMMEDIATELY (don't await)
+    # This allows the server to bind to the port right away
     async def _initialize_services():
         try:
-            setup_nltk_data() # Call NLTK setup at the very beginning of startup
+            # Run NLTK setup in thread pool to avoid blocking
+            await asyncio.to_thread(setup_nltk_data)
+            logger.info("NLTK setup completed")
 
             # Initialize email service
             app.state.email_service = EmailService()
@@ -79,13 +84,18 @@ async def startup_event():
             # Initialize email client for backward compatibility
             await initialize_email_client(app)
             
+            logger.info("All services initialized successfully")
+            
         except Exception as e:
             logger.error(f"Failed to initialize services: {e}", exc_info=True)
             # Don't raise - allow server to start even if some services fail
             # Services will be None and endpoints can handle gracefully
     
-    # Start initialization in background task
+    # Start initialization in background - server will bind immediately
     asyncio.create_task(_initialize_services())
+    
+    # Return immediately - don't wait for services to initialize
+    logger.info("Startup event completed - server binding to port...")
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -218,6 +228,56 @@ def get_processed_messages():
     
     processed_ids = app.state.email_client.load_processed_ids()
     return JSONResponse(content={"processed_message_ids": processed_ids})
+
+@app.get("/email/status")
+def email_status():
+    """Check email polling task status and email client health"""
+    status = {
+        "email_client_initialized": hasattr(app.state, "email_client") and app.state.email_client is not None,
+        "polling_task_initialized": hasattr(app.state, "polling_task") and app.state.polling_task is not None,
+        "polling_task_running": False,
+        "polling_task_error": None,
+        "email_service_status": None
+    }
+    
+    if status["polling_task_initialized"]:
+        task = app.state.polling_task
+        status["polling_task_running"] = not task.done()
+        if task.done():
+            try:
+                error = task.exception()
+                if error:
+                    status["polling_task_error"] = str(error)
+            except Exception as e:
+                status["polling_task_error"] = f"Error checking task: {e}"
+    
+    if status["email_client_initialized"]:
+        try:
+            status["email_service_status"] = app.state.email_service.get_service_status() if hasattr(app.state, "email_service") else None
+        except Exception as e:
+            status["email_service_status"] = {"error": str(e)}
+    
+    return status
+
+@app.post("/email/check")
+async def manual_email_check():
+    """Manually trigger email checking (for testing/debugging)"""
+    if not getattr(app.state, "email_client", None):
+        raise HTTPException(status_code=503, detail="Email service is not available.")
+    
+    try:
+        email_client = app.state.email_client
+        unread_emails = await asyncio.to_thread(email_client.check_unread_emails)
+        
+        return {
+            "success": True,
+            "unread_count": len(unread_emails),
+            "emails": [{"sender": e.get("sender_email"), "subject": e.get("subject")} for e in unread_emails],
+            "message": f"Found {len(unread_emails)} unread emails"
+        }
+    except Exception as e:
+        logger.error(f"Manual email check failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Email check failed: {str(e)}")
 
 # --- Middleware ---
 app.add_middleware(

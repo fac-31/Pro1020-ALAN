@@ -13,11 +13,21 @@ async def email_polling_task(email_client: EmailClient, rag_service: RAGService 
         logger.error("Email client not provided to polling task.")
         return
     
+    logger.info("=" * 50)
+    logger.info("Email polling task STARTED")
+    logger.info(f"RAG service available: {rag_service is not None}")
+    logger.info("=" * 50)
+    
     # Initialize content evaluation service
-    content_evaluator = ContentEvaluationService()
-    logger.info("Content evaluation service initialized")
+    try:
+        content_evaluator = ContentEvaluationService()
+        logger.info("Content evaluation service initialized")
+    except Exception as e:
+        logger.error(f"Failed to initialize content evaluation service: {e}", exc_info=True)
+        return
     
     polling_interval = int(os.getenv('POLLING_INTERVAL', 300))
+    logger.info(f"Polling interval: {polling_interval} seconds")
     
     while True:
         try:
@@ -95,5 +105,6 @@ async def email_polling_task(email_client: EmailClient, rag_service: RAGService 
             break
             
         except Exception as e:
-            logger.error(f"Error in email polling task: {e}")
+            logger.error(f"Error in email polling task: {e}", exc_info=True)
+            logger.info(f"Retrying in 60 seconds...")
             await asyncio.sleep(60)
