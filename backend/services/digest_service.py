@@ -43,11 +43,24 @@ class DailyDigestService:
         try:
             if os.path.exists(self.users_file):
                 with open(self.users_file, 'r') as f:
-                    users = json.load(f)
+                    data = json.load(f)
+                    
+                    # Handle both formats: direct list or {'subscribers': [...]}
+                    if isinstance(data, list):
+                        users = data
+                    elif isinstance(data, dict) and 'subscribers' in data:
+                        users = data['subscribers']
+                    else:
+                        logger.warning(f"Unexpected format in {self.users_file}, using empty list")
+                        users = []
+                    
                     logger.info(f"Loaded {len(users)} users from {self.users_file}")
                     return users
             else:
-                logger.info(f"No users file found at {self.users_file}")
+                # File doesn't exist yet - create empty file for future use (matching subscribers router format)
+                logger.debug(f"No users file found at {self.users_file}, creating empty file")
+                with open(self.users_file, 'w') as f:
+                    json.dump({'subscribers': []}, f, indent=2)
                 return []
         except json.JSONDecodeError as e:
             logger.error(f"Invalid JSON in users file: {e}")
