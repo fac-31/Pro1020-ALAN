@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 
 from core.config import settings
 from core.exceptions import convert_to_http_exception
+from core.nltk_setup import setup_nltk_data # Import the NLTK setup function
 from email_client_init import initialize_email_client, shutdown_email_client
 from routers.subscribers import router as subscribers_router
 from routers.rag import router as rag_router
@@ -43,6 +44,8 @@ app.add_middleware(
 async def startup_event():
     """Initialize all services with enhanced error handling"""
     try:
+        setup_nltk_data() # Call NLTK setup at the very beginning of startup
+
         # Initialize email service
         app.state.email_service = EmailService()
         logger.info("Email service initialized successfully")

@@ -8,6 +8,7 @@ import pickle
 from datetime import datetime
 from openai import OpenAI
 from core.config import settings
+from chunk_modules.hybrid_chunker import HybridChunker # Import HybridChunker
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,19 @@ class RAGEngine:
         # Store document metadata
         self.documents = []
         self.metadata = []
+        
+        # Initialize HybridChunker with configurable parameters
+        self.chunker = HybridChunker(
+            recursive_chunk_size=settings.chunking_recursive_chunk_size,
+            recursive_overlap=settings.chunking_recursive_overlap,
+            sentence_overlap=settings.chunking_sentence_overlap,
+            semantic_embedding_model_name=settings.chunking_semantic_embedding_model_name,
+            semantic_max_chunk_tokens=settings.chunking_semantic_max_chunk_tokens,
+            semantic_similarity_threshold=settings.chunking_semantic_similarity_threshold,
+            semantic_threshold_type=settings.chunking_semantic_threshold_type,
+            semantic_threshold_percentile=settings.chunking_semantic_threshold_percentile,
+            semantic_overlap=settings.chunking_semantic_overlap
+        )
         
         # Load existing data if available
         self._load_data()
@@ -97,47 +111,69 @@ class RAGEngine:
     
     def add_documents(self, documents: List[Dict[str, Any]]) -> bool:
         """
-        Add documents to the knowledge base
+        Add documents to the knowledge base after chunking them.
         
         Args:
-            documents: List of documents with 'content', 'metadata', and 'id' fields
+            documents: List of documents with 'content', 'metadata', and 'id' fields.
+                       The 'content' will be chunked.
             
         Returns:
             True if successful, False otherwise
         """
         try:
-            embeddings = []
-            new_documents = []
-            new_metadata = []
+            all_chunk_embeddings = []
+            all_chunk_contents = []
+            all_chunk_metadata = []
             
             for doc in documents:
-                # Get embedding for document content
-                embedding = self._get_embedding(doc['content'])
-                embeddings.append(embedding)
+                original_doc_id = doc.get('id', f"doc_{hash(doc['content']) % 10000}")
+                original_metadata = doc.get('metadata', {})
                 
-                # Store document and metadata
-                new_documents.append(doc['content'])
-                new_metadata.append({
-                    **doc.get('metadata', {}),
-                    'doc_id': doc['id'],
-                    'added_at': datetime.now().isoformat()
-                })
+                # Chunk the document content
+                processed_chunks = self.chunker.chunk_document(
+                    text=doc['content'],
+                    metadata=original_metadata
+                )
+                
+                for i, chunk in enumerate(processed_chunks):
+                    chunk_content = chunk['text']
+                    chunk_metadata = chunk['metadata']
+                    
+                    # Generate a unique ID for each chunk
+                    chunk_id = f"{original_doc_id}_chunk_{i}"
+                    
+                    # Get embedding for chunk content
+                    embedding = self._get_embedding(chunk_content)
+                    all_chunk_embeddings.append(embedding)
+                    
+                    # Store chunk content and metadata
+                    all_chunk_contents.append(chunk_content)
+                    all_chunk_metadata.append({
+                        **chunk_metadata,
+                        'original_doc_id': original_doc_id,
+                        'chunk_id': chunk_id,
+                        'added_at': datetime.now().isoformat()
+                    })
             
+            if not all_chunk_embeddings:
+                logger.info("No chunks generated from provided documents.")
+                return True
+
             # Convert to numpy array and normalize for cosine similarity
-            embeddings_array = np.array(embeddings)
+            embeddings_array = np.array(all_chunk_embeddings)
             faiss.normalize_L2(embeddings_array)
             
             # Add to FAISS index
             self.index.add(embeddings_array)
             
             # Update local storage
-            self.documents.extend(new_documents)
-            self.metadata.extend(new_metadata)
+            self.documents.extend(all_chunk_contents)
+            self.metadata.extend(all_chunk_metadata)
             
             # Save to disk
             self._save_data()
             
-            logger.info(f"Added {len(documents)} documents to knowledge base")
+            logger.info(f"Added {len(all_chunk_contents)} chunks from {len(documents)} documents to knowledge base")
             return True
             
         except Exception as e:

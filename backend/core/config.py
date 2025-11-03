@@ -46,6 +46,17 @@ class Settings(BaseSettings):
     rag_persist_directory: str = Field(default="./faiss_db", description="RAG persistence directory")
     rag_embedding_model: str = Field(default="text-embedding-3-small", description="Embedding model")
     rag_max_results: int = Field(default=5, description="Maximum RAG search results")
+
+    # Chunking Configuration
+    chunking_recursive_chunk_size: int = Field(default=1000, description="Recursive splitter chunk size (tokens)")
+    chunking_recursive_overlap: int = Field(default=200, description="Recursive splitter overlap (tokens)")
+    chunking_sentence_overlap: int = Field(default=1, description="Sentence normalizer overlap (sentences)")
+    chunking_semantic_embedding_model_name: str = Field(default="all-MiniLM-L6-v2", description="Semantic chunker embedding model name")
+    chunking_semantic_max_chunk_tokens: int = Field(default=500, description="Semantic chunker max chunk tokens")
+    chunking_semantic_similarity_threshold: float = Field(default=0.75, description="Semantic chunker fixed similarity threshold")
+    chunking_semantic_threshold_type: str = Field(default="fixed", description="Semantic chunker threshold type (fixed/percentile)")
+    chunking_semantic_threshold_percentile: float = Field(default=75.0, description="Semantic chunker percentile for dynamic thresholding")
+    chunking_semantic_overlap: int = Field(default=1, description="Semantic chunker overlap (sentences)")
     
     # Daily Digest
     digest_hour: int = Field(default=7, description="Daily digest hour (24h format)")
