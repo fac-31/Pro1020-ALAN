@@ -47,10 +47,10 @@ class AIService:
                 callbacks=callbacks
             )
             
-            # Initialize RAG engine
-            self.rag_engine = RAGService()
+            # Lazy initialize RAG engine to avoid memory issues during startup
+            self.rag_engine = None
             
-            logger.info("AI Service initialized successfully with RAG engine and LangSmith tracking")
+            logger.info("AI Service initialized successfully (RAG engine will be loaded on first use)")
             
         except AIServiceError:
             raise
@@ -100,8 +100,18 @@ class AIService:
             # Extract query from email for RAG context
             query = self._extract_query_from_email(subject, body)
             
-            # Get relevant context from RAG
-            context = self.rag_engine.get_context_for_query(query, user_interests)
+            # Get relevant context from RAG (lazy load if needed)
+            context = None
+            try:
+                if self.rag_engine is None:
+                    logger.info("Lazy loading RAG engine...")
+                    self.rag_engine = RAGService()
+                    logger.info("RAG engine loaded successfully")
+                
+                context = self.rag_engine.get_context_for_query(query, user_interests)
+            except Exception as e:
+                logger.warning(f"RAG context retrieval failed: {e}, continuing without RAG context")
+                context = None
             
             # Create system prompt
             system_prompt = self._create_system_prompt(user_interests, context)
@@ -128,16 +138,19 @@ class AIService:
             }
             
             # Generate response with metadata
+            logger.info(f"Calling OpenAI API for email reply (context_docs: {len(context) if context else 0})")
             response = self.llm.invoke(
                 messages,
                 metadata=run_metadata,
                 tags=["email_reply", "rag_powered"]
             )
             
-            return response.content.strip()
+            reply_content = response.content.strip()
+            logger.info(f"Successfully generated AI reply ({len(reply_content)} characters)")
+            return reply_content
             
         except Exception as e:
-            logger.error(f"Error generating AI reply: {e}")
+            logger.error(f"Error generating AI reply: {e}", exc_info=True)  # Full traceback
             raise create_openai_error(f"Failed to generate email reply: {str(e)}")
     
     def generate_welcome_email(self, user_name: str, user_email: str, interests: List[str]) -> str:
