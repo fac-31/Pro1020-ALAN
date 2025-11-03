@@ -2,10 +2,10 @@ import imaplib
 import smtplib
 import logging
 import unicodedata
-from typing import Optional, List, Dict
+from typing import Optional, List
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from .utils import clean_str, setup_utf8_encoding
+from .utils import clean_str
 
 logger = logging.getLogger(__name__)
 

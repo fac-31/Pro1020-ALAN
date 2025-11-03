@@ -6,8 +6,7 @@ Tests FastAPI endpoints and HTTP responses
 import unittest
 import tempfile
 import os
-import json
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from fastapi.testclient import TestClient
 
 # Add parent directory to path for imports

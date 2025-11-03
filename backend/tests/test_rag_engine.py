@@ -7,7 +7,7 @@ import unittest
 import tempfile
 import os
 import shutil
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 # Add parent directory to path for imports
 import sys

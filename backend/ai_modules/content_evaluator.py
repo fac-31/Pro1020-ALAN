@@ -6,7 +6,7 @@ This module analyzes email content, attachments, and links to decide what's wort
 import os
 import logging
 import requests
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List
 from dataclasses import dataclass
 from openai import OpenAI
 from langchain_openai import ChatOpenAI

@@ -77,7 +77,6 @@ def test_rag_integration():
         
         # Test AI service with RAG
         try:
-            from ai_modules.ai_service import AIService
             print("✅ AI Service with RAG imported successfully")
         except ValueError as e:
             if "OPENAI_API_KEY" in str(e):

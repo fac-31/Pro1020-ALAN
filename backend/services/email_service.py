@@ -3,7 +3,7 @@ Email Service - Refactored EmailClient with better error handling and configurat
 """
 
 import logging
-from typing import List, Dict, Optional
+from typing import List, Dict
 from core.config import settings
 from core.exceptions import EmailServiceError, create_email_connection_error
 from email_modules.connection import EmailConnection

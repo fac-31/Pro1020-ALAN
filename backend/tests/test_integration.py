@@ -7,7 +7,7 @@ import unittest
 import tempfile
 import os
 import asyncio
-from unittest.mock import Mock, patch, MagicMock, AsyncMock
+from unittest.mock import Mock, patch
 from email.message import EmailMessage
 
 # Add parent directory to path for imports

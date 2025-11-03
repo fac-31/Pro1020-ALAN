@@ -4,7 +4,6 @@ from typing import List, Dict, Optional, Any
 import faiss
 import numpy as np
 import json
-import pickle
 from datetime import datetime
 from openai import OpenAI
 from core.config import settings

@@ -4,7 +4,7 @@ Content Evaluation Service - Enhanced content evaluation with better error handl
 
 import logging
 import requests
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List
 from dataclasses import dataclass
 from openai import OpenAI
 from langchain_openai import ChatOpenAI

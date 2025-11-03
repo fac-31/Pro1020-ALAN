@@ -6,8 +6,7 @@ Tests AI service, conversation memory, and content evaluation
 import unittest
 import tempfile
 import os
-import json
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 # Add parent directory to path for imports
 import sys
@@ -15,7 +14,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from ai_modules.ai_service import AIService
 from ai_modules.conversation_memory import ConversationMemory
-from ai_modules.content_evaluator import ContentEvaluator, ContentEvaluation
+from ai_modules.content_evaluator import ContentEvaluator
 
 
 class TestConversationMemory(unittest.TestCase):

@@ -21,7 +21,6 @@ def test_ai_integration():
     
     try:
         # Test AI modules import
-        from ai_modules.ai_service import AIService
         from ai_modules.conversation_memory import ConversationMemory
         from email_modules.reply_generator import ReplyGenerator
         

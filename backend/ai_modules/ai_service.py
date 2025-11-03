@@ -3,7 +3,7 @@ AI service module
 """
 
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List
 from openai import OpenAI
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage

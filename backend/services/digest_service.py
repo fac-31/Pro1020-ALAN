@@ -7,7 +7,7 @@ import logging
 import json
 import os
 from datetime import datetime, timedelta
-from typing import List, Dict, Optional
+from typing import List, Dict
 
 from core.config import settings
 from core.exceptions import DailyDigestError

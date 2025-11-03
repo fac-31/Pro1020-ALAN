@@ -8,7 +8,6 @@ import unittest
 import sys
 import os
 import tempfile
-import shutil
 from io import StringIO
 
 # Add parent directory to path for imports
@@ -72,21 +71,21 @@ def run_all_tests():
     print(f"⏭️  Skipped: {skipped}")
     
     if failures > 0:
-        print(f"\n❌ FAILURES:")
+        print("\n❌ FAILURES:")
         for test, traceback in result.failures:
             print(f"  - {test}: {traceback.split('AssertionError:')[-1].strip()}")
     
     if errors > 0:
-        print(f"\n💥 ERRORS:")
+        print("\n💥 ERRORS:")
         for test, traceback in result.errors:
             print(f"  - {test}: {traceback.split('Exception:')[-1].strip()}")
     
     # Overall result
     if failures == 0 and errors == 0:
-        print(f"\n🎉 ALL TESTS PASSED! Alan's AI Assistant is working correctly!")
+        print("\n🎉 ALL TESTS PASSED! Alan's AI Assistant is working correctly!")
         return True
     else:
-        print(f"\n⚠️  Some tests failed. Please check the errors above.")
+        print("\n⚠️  Some tests failed. Please check the errors above.")
         return False
 
 def run_specific_test_module(module_name):

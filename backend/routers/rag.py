@@ -1,9 +1,8 @@
 import os
-import json
 import logging
-from fastapi import APIRouter, HTTPException, Depends, Request, UploadFile, File
+from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
-from typing import List, Dict, Optional
+from typing import List
 from rag_engine import RAGEngine
 from daily_digest import DailyDigestService
 from ai_modules.ai_service import AIService

@@ -6,9 +6,7 @@ Tests email parsing, connection handling, and message tracking
 import unittest
 import tempfile
 import os
-import json
 from email.message import EmailMessage
-from unittest.mock import Mock, patch, MagicMock
 
 # Add parent directory to path for imports
 import sys

@@ -50,7 +50,9 @@ class SemanticChunker(BaseChunker):
             # Calculate all pairwise similarities between consecutive sentences
             consecutive_similarities = []
             for i in range(len(sentence_embeddings) - 1):
-                sim = cosine_similarity([sentence_embeddings[i]], [sentence_embeddings[i+1]])[0][0]
+                sim = cosine_similarity(sentence_embeddings[i].reshape(1, -1),
+                                        sentence_embeddings[i+1].reshape(1, -1))[0][0]
+                # sim = cosine_similarity([sentence_embeddings[i]], [sentence_embeddings[i+1]])[0][0]
                 consecutive_similarities.append(sim)
             
             # Set threshold as the Nth percentile of these similarities
@@ -67,7 +69,10 @@ class SemanticChunker(BaseChunker):
                 continue
 
             # Calculate similarity with the last sentence in the current chunk
-            sim = cosine_similarity([emb], [current_chunk_embs[-1]])[0][0]
+            sim = cosine_similarity(emb.reshape(1, -1),
+                                    current_chunk_embs[-1].reshape(1, -1))[0][0]
+
+            # sim = cosine_similarity([emb], [current_chunk_embs[-1]])[0][0]
             
             # Calculate current chunk length using tiktoken
             current_chunk_text = " ".join(current_chunk_sentences)
