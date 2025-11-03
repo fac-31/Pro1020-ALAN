@@ -1,0 +1,244 @@
+import os
+import json
+import logging
+from fastapi import APIRouter, HTTPException, Depends, Request, UploadFile, File
+from pydantic import BaseModel
+from typing import List, Dict, Optional
+from rag_engine import RAGEngine
+from daily_digest import DailyDigestService
+from ai_modules.ai_service import AIService
+
+# Add parent directory to path to allow sibling imports
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+# --- Router Setup ---
+router = APIRouter()
+logger = logging.getLogger(__name__)
+
+# --- Pydantic Models ---
+class DocumentUpload(BaseModel):
+    content: str
+    filename: str
+    topics: List[str] = []
+
+class NewsArticle(BaseModel):
+    title: str
+    content: str
+    url: str = ""
+    topics: List[str] = []
+
+class QueryRequest(BaseModel):
+    query: str
+    user_interests: List[str] = []
+    n_results: int = 5
+
+class UserDigest(BaseModel):
+    email: str
+    interests: List[str]
+    name: str = ""
+
+# --- Dependency Injection ---
+def get_rag_engine(request: Request) -> RAGEngine:
+    """Dependency to get the RAG engine from application state."""
+    if not hasattr(request.app.state, 'rag_engine') or not request.app.state.rag_engine:
+        raise HTTPException(status_code=503, detail="RAG engine is not available.")
+    return request.app.state.rag_engine
+
+def get_ai_service(request: Request) -> AIService:
+    """Dependency to get the AI service from application state."""
+    if not hasattr(request.app.state, 'ai_service') or not request.app.state.ai_service:
+        raise HTTPException(status_code=503, detail="AI service is not available.")
+    return request.app.state.ai_service
+
+def get_digest_service(request: Request) -> DailyDigestService:
+    """Dependency to get the daily digest service from application state."""
+    if not hasattr(request.app.state, 'digest_service') or not request.app.state.digest_service:
+        raise HTTPException(status_code=503, detail="Daily digest service is not available.")
+    return request.app.state.digest_service
+
+# --- API Endpoints ---
+
+@router.post("/documents/upload", tags=["Documents"])
+async def upload_document(
+    document: DocumentUpload,
+    rag_engine: RAGEngine = Depends(get_rag_engine)
+):
+    """Upload a document to Alan's knowledge base"""
+    try:
+        success = rag_engine.add_user_document(
+            content=document.content,
+            filename=document.filename,
+            user_email="system",  # Could be enhanced to track user
+            topics=document.topics
+        )
+        
+        if success:
+            return {"status": "success", "message": f"Document '{document.filename}' uploaded successfully"}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to upload document")
+            
+    except Exception as e:
+        logger.error(f"Error uploading document: {e}")
+        raise HTTPException(status_code=500, detail=f"Error uploading document: {str(e)}")
+
+@router.post("/news/add", tags=["News"])
+async def add_news_article(
+    article: NewsArticle,
+    rag_engine: RAGEngine = Depends(get_rag_engine)
+):
+    """Add a news article to Alan's knowledge base"""
+    try:
+        success = rag_engine.add_news_article(
+            title=article.title,
+            content=article.content,
+            url=article.url,
+            topics=article.topics
+        )
+        
+        if success:
+            return {"status": "success", "message": f"News article '{article.title}' added successfully"}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to add news article")
+            
+    except Exception as e:
+        logger.error(f"Error adding news article: {e}")
+        raise HTTPException(status_code=500, detail=f"Error adding news article: {str(e)}")
+
+@router.post("/search", tags=["RAG"])
+async def search_knowledge_base(
+    query_request: QueryRequest,
+    rag_engine: RAGEngine = Depends(get_rag_engine)
+):
+    """Search Alan's knowledge base using RAG"""
+    try:
+        results = rag_engine.search_documents(
+            query=query_request.query,
+            n_results=query_request.n_results,
+            filter_metadata={"topics": {"$in": query_request.user_interests}} if query_request.user_interests else None
+        )
+        
+        return {
+            "status": "success",
+            "query": query_request.query,
+            "results": results,
+            "total_found": len(results)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error searching knowledge base: {e}")
+        raise HTTPException(status_code=500, detail=f"Error searching knowledge base: {str(e)}")
+
+@router.get("/knowledge-base/stats", tags=["RAG"])
+async def get_knowledge_base_stats(
+    rag_engine: RAGEngine = Depends(get_rag_engine)
+):
+    """Get statistics about Alan's knowledge base"""
+    try:
+        stats = rag_engine.get_knowledge_base_stats()
+        return {"status": "success", "stats": stats}
+        
+    except Exception as e:
+        logger.error(f"Error getting knowledge base stats: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting stats: {str(e)}")
+
+@router.post("/digest/subscribe", tags=["Daily Digest"])
+async def subscribe_to_digest(
+    user: UserDigest,
+    digest_service: DailyDigestService = Depends(get_digest_service)
+):
+    """Subscribe to Alan's daily digest"""
+    try:
+        success = digest_service.add_user(
+            email=user.email,
+            interests=user.interests,
+            name=user.name
+        )
+        
+        if success:
+            return {"status": "success", "message": f"Subscribed {user.email} to daily digest"}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to subscribe to daily digest")
+            
+    except Exception as e:
+        logger.error(f"Error subscribing to digest: {e}")
+        raise HTTPException(status_code=500, detail=f"Error subscribing: {str(e)}")
+
+@router.delete("/digest/unsubscribe/{email}", tags=["Daily Digest"])
+async def unsubscribe_from_digest(
+    email: str,
+    digest_service: DailyDigestService = Depends(get_digest_service)
+):
+    """Unsubscribe from Alan's daily digest"""
+    try:
+        success = digest_service.remove_user(email)
+        
+        if success:
+            return {"status": "success", "message": f"Unsubscribed {email} from daily digest"}
+        else:
+            raise HTTPException(status_code=404, detail=f"User {email} not found in digest list")
+            
+    except Exception as e:
+        logger.error(f"Error unsubscribing from digest: {e}")
+        raise HTTPException(status_code=500, detail=f"Error unsubscribing: {str(e)}")
+
+@router.get("/digest/stats", tags=["Daily Digest"])
+async def get_digest_stats(
+    digest_service: DailyDigestService = Depends(get_digest_service)
+):
+    """Get statistics about daily digest subscribers"""
+    try:
+        stats = digest_service.get_digest_stats()
+        return {"status": "success", "stats": stats}
+        
+    except Exception as e:
+        logger.error(f"Error getting digest stats: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting digest stats: {str(e)}")
+
+@router.post("/test-rag", tags=["RAG"])
+async def test_rag_response(
+    query_request: QueryRequest,
+    ai_service: AIService = Depends(get_ai_service)
+):
+    """Test RAG-powered response generation"""
+    try:
+        # Generate a test response using RAG
+        context = ai_service.rag_engine.get_context_for_query(
+            query=query_request.query,
+            user_interests=query_request.user_interests,
+            n_results=query_request.n_results
+        )
+        
+        # Create a test prompt
+        test_prompt = f"""Based on the following information from my knowledge base:
+
+{context}
+
+Please provide a helpful response to this query: {query_request.query}
+
+Be informative, concise, and helpful."""
+        
+        messages = [
+            {"role": "system", "content": "You are Alan, an AI assistant. Provide helpful, accurate responses based on your knowledge base."},
+            {"role": "user", "content": test_prompt}
+        ]
+        
+        response = ai_service.client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=messages,
+            temperature=0.7,
+            max_tokens=500
+        )
+        
+        reply = response.choices[0].message.content.strip()
+        
+        return {
+            "status": "success",
+            "query": query_request.query,
+            "context_used": context,
+            "response": reply
+        }
+        
+    except Exception as e:
+        logger.error(f"Error testing RAG response: {e}")
+        raise HTTPException(status_code=500, detail=f"Error testing RAG: {str(e)}")

@@ -9,6 +9,7 @@ from typing import List, Dict
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from email_client import EmailClient
+from email_modules.reply_generator import ReplyGenerator
 
 # --- Router Setup ---
 router = APIRouter()
@@ -61,7 +62,8 @@ async def subscribe_user(form: SubscribeForm, email_client: EmailClient = Depend
     subscribers.append(form.dict())
     save_subscribers(subscribers)
 
-    welcome_body = f"Hi {form.name},\n\nThanks for subscribing! Your interests: {', '.join(form.interests)}.\n\nWelcome aboard!\n\nBest,\nAlan"
+    reply_generator = ReplyGenerator()
+    welcome_body = reply_generator.generate_welcome_email(form.name, form.interests)
     
     success = await email_client.send_reply(
         to_email=form.email,
