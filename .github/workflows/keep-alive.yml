@@ -19,12 +19,45 @@ jobs:
           fi
           
           echo "🔄 Pinging Render server..."
-          response=$(curl -s -o /dev/null -w "%{http_code}" ${{ secrets.RENDER_SERVER_URL }}/health || echo "000")
           
-          if [ "$response" = "200" ]; then
-            echo "✅ Server is alive! Response code: $response"
-          else
-            echo "⚠️ Server responded with code: $response"
-            exit 1
+          # Try pinging with retries (3 attempts with 5 second delay)
+          max_attempts=3
+          attempt=1
+          success=false
+          
+          while [ $attempt -le $max_attempts ]; do
+            echo "Attempt $attempt/$max_attempts..."
+            response=$(curl -s -o /dev/null -w "%{http_code}" "${{ secrets.RENDER_SERVER_URL }}/health" || echo "000")
+            
+            echo "Response code: $response"
+            
+            # 200 = success, 502/503 = server starting/transient error, others = potential issues
+            if [ "$response" = "200" ]; then
+              echo "✅ Server is alive! Response code: $response"
+              success=true
+              break
+            elif [ "$response" = "502" ] || [ "$response" = "503" ]; then
+              echo "⚠️ Server is starting or temporarily unavailable (code: $response)"
+              if [ $attempt -lt $max_attempts ]; then
+                echo "Waiting 5 seconds before retry..."
+                sleep 5
+              fi
+            else
+              echo "⚠️ Server responded with code: $response"
+              if [ $attempt -lt $max_attempts ]; then
+                echo "Waiting 5 seconds before retry..."
+                sleep 5
+              fi
+            fi
+            
+            attempt=$((attempt + 1))
+          done
+          
+          # Don't fail the workflow - we're just pinging to keep it alive
+          # If server is down, it will wake up on next request anyway
+          if [ "$success" = false ]; then
+            echo "⚠️ Server didn't respond with 200 after $max_attempts attempts"
+            echo "This is okay - server will wake up on next request"
+            exit 0  # Don't fail the workflow
           fi
 
