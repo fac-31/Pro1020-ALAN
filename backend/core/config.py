@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     # Email Processing
     polling_interval: int = Field(default=300, description="Email polling interval in seconds")
     max_emails_per_batch: int = Field(default=10, description="Maximum emails to process per batch")
+    max_email_size_mb: float = Field(default=5.0, description="Maximum email size to process in MB (skip larger emails)")
+    extract_attachments: bool = Field(default=True, description="Extract attachment content (disable for large emails)")
+    max_attachment_size_mb: float = Field(default=1.0, description="Maximum attachment size to extract in MB")
     
     # RAG Configuration
     rag_persist_directory: str = Field(default="./faiss_db", description="RAG persistence directory")

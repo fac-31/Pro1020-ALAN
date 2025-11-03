@@ -62,8 +62,19 @@ class EmailClient:
                     # Fetch email content
                     email_body = self.connection.fetch_email(mail, email_id)
                     if email_body:
-                        # Parse email message
-                        parsed_email = self.parser.parse_email_message(email_body)
+                        # Check email size before parsing (skip very large emails)
+                        email_size_mb = len(email_body) / (1024 * 1024)
+                        if email_size_mb > 5.0:  # Skip emails larger than 5MB
+                            logger.warning(f"Skipping email {email_id}: too large ({email_size_mb:.2f} MB)")
+                            continue
+                        
+                        # Parse email message with timeout protection
+                        try:
+                            parsed_email = self.parser.parse_email_message(email_body)
+                        except Exception as e:
+                            logger.error(f"Error parsing email {email_id}: {e}")
+                            continue
+                            
                         if parsed_email:
                             parsed_email['email_id'] = email_id.decode('utf-8', errors='ignore')
                             emails.append(parsed_email)
