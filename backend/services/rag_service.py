@@ -4,6 +4,7 @@ RAG Service - Enhanced RAG engine with better error handling and configuration
 
 import logging
 import os
+import gc
 from typing import List, Dict, Optional, Any
 import faiss
 import numpy as np
@@ -80,20 +81,40 @@ class RAGService:
             )
     
     def _load_data(self):
-        """Load existing FAISS index and metadata"""
+        """Load existing FAISS index and metadata with memory optimization"""
         try:
             index_path = f"{self.persist_directory}/faiss_index.bin"
             metadata_path = f"{self.persist_directory}/metadata.json"
             
             if os.path.exists(index_path) and os.path.exists(metadata_path):
+                # Check file size before loading (memory optimization)
+                index_size = os.path.getsize(index_path)
+                max_recommended_size = settings.rag_max_index_size * self.dimension * 4  # 4 bytes per float32
+                
+                if index_size > max_recommended_size * 2:  # Allow some overhead
+                    logger.warning(f"Index file size ({index_size / 1024 / 1024:.2f}MB) is large. Consider reducing index size.")
+                
                 # Load FAISS index
+                # Note: FAISS doesn't support direct memory mapping via read_index,
+                # but we can optimize by checking index size before loading
                 self.index = faiss.read_index(index_path)
+                
+                # Verify index size doesn't exceed limit
+                if self.index.ntotal > settings.rag_max_index_size:
+                    logger.warning(f"Loaded index has {self.index.ntotal} vectors, exceeding limit of {settings.rag_max_index_size}")
                 
                 # Load metadata
                 with open(metadata_path, 'r') as f:
                     data = json.load(f)
                     self.documents = data.get('documents', [])
                     self.metadata = data.get('metadata', [])
+                
+                # Ensure metadata matches index size
+                if len(self.documents) != self.index.ntotal:
+                    logger.warning(f"Document count ({len(self.documents)}) doesn't match index size ({self.index.ntotal})")
+                    # Truncate to match index
+                    self.documents = self.documents[:self.index.ntotal]
+                    self.metadata = self.metadata[:self.index.ntotal]
                 
                 logger.info(f"Loaded {len(self.documents)} documents from {self.persist_directory}")
             else:
@@ -136,51 +157,84 @@ class RAGService:
             )
     
     def add_documents(self, documents: List[Dict[str, Any]]) -> bool:
-        """Add multiple documents to the knowledge base"""
+        """Add multiple documents to the knowledge base with batch processing"""
         try:
             if not documents:
                 logger.warning("No documents provided to add")
                 return False
             
-            embeddings = []
-            new_docs = []
-            new_metadata = []
-            
-            for doc in documents:
-                content = doc.get('content', '')
-                if not content.strip():
-                    logger.warning("Skipping document with empty content")
-                    continue
-                
-                # Get embedding
-                embedding = self._get_embedding(content)
-                embeddings.append(embedding)
-                
-                # Store document and metadata
-                new_docs.append(content)
-                new_metadata.append({
-                    'title': doc.get('title', ''),
-                    'topics': doc.get('topics', []),
-                    'source': doc.get('source', 'manual'),
-                    'added_at': datetime.now().isoformat()
-                })
-            
-            if not embeddings:
-                logger.warning("No valid documents to add")
+            # Check if we've reached the maximum index size
+            current_size = self.index.ntotal
+            max_size = settings.rag_max_index_size
+            if current_size >= max_size:
+                logger.warning(f"FAISS index has reached maximum size ({max_size}). Cannot add more documents.")
                 return False
             
-            # Add to FAISS index
-            embeddings_array = np.vstack(embeddings)
-            self.index.add(embeddings_array)
+            # Calculate how many documents we can add
+            remaining_slots = max_size - current_size
+            documents_to_process = documents[:remaining_slots]
             
-            # Update document storage
-            self.documents.extend(new_docs)
-            self.metadata.extend(new_metadata)
+            if len(documents) > remaining_slots:
+                logger.warning(f"Only processing {remaining_slots} of {len(documents)} documents due to index size limit")
+            
+            batch_size = settings.rag_batch_size
+            total_added = 0
+            
+            # Process documents in batches
+            for batch_start in range(0, len(documents_to_process), batch_size):
+                batch = documents_to_process[batch_start:batch_start + batch_size]
+                batch_embeddings = []
+                batch_docs = []
+                batch_metadata = []
+                
+                for doc in batch:
+                    content = doc.get('content', '')
+                    if not content.strip():
+                        logger.warning("Skipping document with empty content")
+                        continue
+                    
+                    # Get embedding
+                    embedding = self._get_embedding(content)
+                    batch_embeddings.append(embedding)
+                    
+                    # Store document and metadata
+                    batch_docs.append(content)
+                    batch_metadata.append({
+                        'title': doc.get('title', ''),
+                        'topics': doc.get('topics', []),
+                        'source': doc.get('source', 'manual'),
+                        'added_at': datetime.now().isoformat()
+                    })
+                
+                if not batch_embeddings:
+                    continue
+                
+                # Add batch to FAISS index
+                batch_embeddings_array = np.vstack(batch_embeddings).astype(np.float32)
+                self.index.add(batch_embeddings_array)
+                
+                # Update document storage
+                self.documents.extend(batch_docs)
+                self.metadata.extend(batch_metadata)
+                
+                total_added += len(batch_docs)
+                
+                # Clear batch embeddings to free memory
+                del batch_embeddings
+                del batch_embeddings_array
+                
+                # Force garbage collection between batches for memory efficiency
+                if settings.low_memory_mode:
+                    gc.collect()
+            
+            if total_added == 0:
+                logger.warning("No valid documents to add")
+                return False
             
             # Save data
             self._save_data()
             
-            logger.info(f"Successfully added {len(new_docs)} documents to knowledge base")
+            logger.info(f"Successfully added {total_added} documents to knowledge base")
             return True
             
         except Exception as e:
