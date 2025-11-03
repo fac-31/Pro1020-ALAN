@@ -1,5 +1,6 @@
 import os
 import logging
+import gc
 from typing import List, Dict, Optional, Any
 import faiss
 import numpy as np
@@ -43,11 +44,14 @@ class RAGEngine:
             recursive_overlap=settings.chunking_recursive_overlap,
             sentence_overlap=settings.chunking_sentence_overlap,
             semantic_embedding_model_name=settings.chunking_semantic_embedding_model_name,
+            semantic_model_size=settings.chunking_semantic_model_size,
             semantic_max_chunk_tokens=settings.chunking_semantic_max_chunk_tokens,
             semantic_similarity_threshold=settings.chunking_semantic_similarity_threshold,
             semantic_threshold_type=settings.chunking_semantic_threshold_type,
             semantic_threshold_percentile=settings.chunking_semantic_threshold_percentile,
-            semantic_overlap=settings.chunking_semantic_overlap
+            semantic_overlap=settings.chunking_semantic_overlap,
+            semantic_unload_model_after_use=settings.chunking_semantic_unload_model_after_use,
+            semantic_embedding_batch_size=settings.chunking_semantic_embedding_batch_size
         )
         
         # Load existing data if available
@@ -160,7 +164,7 @@ class RAGEngine:
                 return True
 
             # Convert to numpy array and normalize for cosine similarity
-            embeddings_array = np.array(all_chunk_embeddings)
+            embeddings_array = np.array(all_chunk_embeddings).astype(np.float32)
             faiss.normalize_L2(embeddings_array)
             
             # Add to FAISS index
@@ -169,6 +173,14 @@ class RAGEngine:
             # Update local storage
             self.documents.extend(all_chunk_contents)
             self.metadata.extend(all_chunk_metadata)
+            
+            # Clear embeddings to free memory
+            del all_chunk_embeddings
+            del embeddings_array
+            
+            # Force garbage collection in low memory mode
+            if settings.low_memory_mode:
+                gc.collect()
             
             # Save to disk
             self._save_data()

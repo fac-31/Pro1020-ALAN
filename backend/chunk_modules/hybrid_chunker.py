@@ -10,21 +10,27 @@ class HybridChunker:
         recursive_overlap: int = 200,
         sentence_overlap: int = 1,
         semantic_embedding_model_name: str = "all-MiniLM-L6-v2",
+        semantic_model_size: str = "small",
         semantic_max_chunk_tokens: int = 500,
         semantic_similarity_threshold: float = 0.75,
         semantic_threshold_type: str = "fixed",
         semantic_threshold_percentile: float = 75.0,
-        semantic_overlap: int = 1
+        semantic_overlap: int = 1,
+        semantic_unload_model_after_use: bool = False,
+        semantic_embedding_batch_size: int = 32
     ):
         self.recursive = RecursiveSplitter(chunk_size=recursive_chunk_size, overlap=recursive_overlap)
         self.normalizer = NormaliseSentence(sentence_overlap=sentence_overlap)
         self.semantic = SemanticChunker(
             embedding_model_name=semantic_embedding_model_name,
+            model_size=semantic_model_size,
             max_chunk_tokens=semantic_max_chunk_tokens,
             similarity_threshold=semantic_similarity_threshold,
             threshold_type=semantic_threshold_type,
             threshold_percentile=semantic_threshold_percentile,
-            overlap=semantic_overlap
+            overlap=semantic_overlap,
+            unload_model_after_use=semantic_unload_model_after_use,
+            embedding_batch_size=semantic_embedding_batch_size
         )
 
     def chunk_document(self, text: str, metadata: Optional[Dict] = None) -> List[Dict]:
