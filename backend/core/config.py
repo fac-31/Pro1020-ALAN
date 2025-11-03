@@ -46,17 +46,23 @@ class Settings(BaseSettings):
     rag_persist_directory: str = Field(default="./faiss_db", description="RAG persistence directory")
     rag_embedding_model: str = Field(default="text-embedding-3-small", description="Embedding model")
     rag_max_results: int = Field(default=5, description="Maximum RAG search results")
+    rag_max_index_size: int = Field(default=10000, description="Maximum vectors in FAISS index")
+    rag_use_memory_mapping: bool = Field(default=True, description="Use memory mapping for FAISS")
+    rag_batch_size: int = Field(default=10, description="Batch size for processing documents")
 
     # Chunking Configuration
     chunking_recursive_chunk_size: int = Field(default=1000, description="Recursive splitter chunk size (tokens)")
     chunking_recursive_overlap: int = Field(default=200, description="Recursive splitter overlap (tokens)")
     chunking_sentence_overlap: int = Field(default=1, description="Sentence normalizer overlap (sentences)")
     chunking_semantic_embedding_model_name: str = Field(default="all-MiniLM-L6-v2", description="Semantic chunker embedding model name")
+    chunking_semantic_model_size: str = Field(default="small", description="Model size: small, medium, large")
+    chunking_semantic_unload_model_after_use: bool = Field(default=False, description="Unload model after chunking to free memory")
     chunking_semantic_max_chunk_tokens: int = Field(default=500, description="Semantic chunker max chunk tokens")
     chunking_semantic_similarity_threshold: float = Field(default=0.75, description="Semantic chunker fixed similarity threshold")
     chunking_semantic_threshold_type: str = Field(default="fixed", description="Semantic chunker threshold type (fixed/percentile)")
     chunking_semantic_threshold_percentile: float = Field(default=75.0, description="Semantic chunker percentile for dynamic thresholding")
     chunking_semantic_overlap: int = Field(default=1, description="Semantic chunker overlap (sentences)")
+    chunking_semantic_embedding_batch_size: int = Field(default=32, description="Batch size for sentence embedding processing")
     
     # Daily Digest
     digest_hour: int = Field(default=7, description="Daily digest hour (24h format)")
@@ -82,6 +88,9 @@ class Settings(BaseSettings):
     
     # OpenMP Fix
     kmp_duplicate_lib_ok: bool = Field(default=True, description="Allow duplicate OpenMP libraries")
+    
+    # Memory Optimization
+    low_memory_mode: bool = Field(default=False, description="Enable aggressive memory optimizations")
     
     @validator('environment')
     def validate_environment(cls, v):
@@ -134,6 +143,14 @@ class Settings(BaseSettings):
         if not 0 <= v <= 59:
             raise ValueError('Digest minute must be between 0 and 59')
         return v
+    
+    @validator('chunking_semantic_model_size')
+    def validate_model_size(cls, v):
+        """Validate model size"""
+        allowed_sizes = ['small', 'medium', 'large']
+        if v.lower() not in allowed_sizes:
+            raise ValueError(f'Model size must be one of {allowed_sizes}')
+        return v.lower()
     
     class Config:
         env_file = ".env"
@@ -210,6 +227,19 @@ def setup_environment():
         
         if settings.langsmith_project_evaluation:
             os.environ['LANGSMITH_PROJECT_EVALUATION'] = settings.langsmith_project_evaluation
+    
+    # Apply low memory mode optimizations
+    if settings.low_memory_mode:
+        # Reduce batch sizes for memory efficiency
+        if settings.rag_batch_size > 5:
+            settings.rag_batch_size = 5
+        if settings.chunking_semantic_embedding_batch_size > 16:
+            settings.chunking_semantic_embedding_batch_size = 16
+        # Enable model unloading by default in low memory mode
+        settings.chunking_semantic_unload_model_after_use = True
+        # Use smaller model size
+        if settings.chunking_semantic_model_size != 'small':
+            settings.chunking_semantic_model_size = 'small'
 
 
 # Setup environment on import

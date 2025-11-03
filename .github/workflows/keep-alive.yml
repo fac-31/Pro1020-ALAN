@@ -1,0 +1,30 @@
+name: Keep Render Server Alive
+
+on:
+  schedule:
+    # Run every 10 minutes (cron format: minute hour day month day-of-week)
+    - cron: '*/10 * * * *'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render Server
+        run: |
+          if [ -z "${{ secrets.RENDER_SERVER_URL }}" ]; then
+            echo "⚠️ RENDER_SERVER_URL secret is not set"
+            echo "Please add your Render server URL as a GitHub secret named RENDER_SERVER_URL"
+            exit 1
+          fi
+          
+          echo "🔄 Pinging Render server..."
+          response=$(curl -s -o /dev/null -w "%{http_code}" ${{ secrets.RENDER_SERVER_URL }}/health || echo "000")
+          
+          if [ "$response" = "200" ]; then
+            echo "✅ Server is alive! Response code: $response"
+          else
+            echo "⚠️ Server responded with code: $response"
+            exit 1
+          fi
+
