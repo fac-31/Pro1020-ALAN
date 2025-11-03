@@ -63,7 +63,7 @@ class ReplyGenerator:
             return reply
             
         except Exception as e:
-            logger.error(f"Error generating AI reply: {e}")
+            logger.error(f"Error generating AI reply: {e}", exc_info=True)  # Add full traceback
             # Fallback to simple reply
             return self._generate_fallback_reply(sender_name, subject)
 
