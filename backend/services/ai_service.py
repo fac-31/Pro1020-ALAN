@@ -47,10 +47,10 @@ class AIService:
                 callbacks=callbacks
             )
             
-            # Initialize RAG engine
-            self.rag_engine = RAGEngine()
+            # Lazy initialize RAG engine to avoid memory issues during startup
+            self.rag_engine = None
             
-            logger.info("AI Service initialized successfully with RAG engine and LangSmith tracking")
+            logger.info("AI Service initialized successfully (RAG engine will be loaded on first use)")
             
         except AIServiceError:
             raise
@@ -60,6 +60,14 @@ class AIService:
                 error_code="AI_SERVICE_INIT_FAILED",
                 details={"original_error": str(e)}
             )
+    
+    def _get_rag_engine(self):
+        """Lazy load RAG engine to avoid memory issues during startup"""
+        if self.rag_engine is None:
+            logger.info("Lazy loading RAG engine...")
+            self.rag_engine = RAGEngine()
+            logger.info("RAG engine loaded successfully")
+        return self.rag_engine
     
     def _setup_langsmith_tracking(self):
         """Setup LangSmith tracking if API key is provided"""
@@ -101,7 +109,7 @@ class AIService:
             query = self._extract_query_from_email(subject, body)
             
             # Get relevant context from RAG
-            context = self.rag_engine.get_context_for_query(query, user_interests)
+            context = self._get_rag_engine().get_context_for_query(query, user_interests)
             
             # Create system prompt
             system_prompt = self._create_system_prompt(user_interests, context)
@@ -245,7 +253,7 @@ class AIService:
                 "status": "healthy",
                 "openai_model": settings.openai_model,
                 "langsmith_enabled": self.tracer is not None,
-                "rag_engine_status": "connected" if self.rag_engine else "disconnected",
+                "rag_engine_status": "connected" if self.rag_engine else "not_loaded",
                 "api_test": "successful"
             }
         except Exception as e:
@@ -253,7 +261,7 @@ class AIService:
                 "status": "unhealthy",
                 "openai_model": settings.openai_model,
                 "langsmith_enabled": self.tracer is not None,
-                "rag_engine_status": "connected" if self.rag_engine else "disconnected",
+                "rag_engine_status": "connected" if self.rag_engine else "not_loaded",
                 "api_test": "failed",
                 "error": str(e)
             }
