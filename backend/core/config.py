@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     # Email Processing
     polling_interval: int = Field(default=300, description="Email polling interval in seconds")
     max_emails_per_batch: int = Field(default=10, description="Maximum emails to process per batch")
+    max_email_size_mb: float = Field(default=5.0, description="Maximum email size to process in MB (skip larger emails)")
+    extract_attachments: bool = Field(default=True, description="Extract attachment content (disable for large emails)")
+    max_attachment_size_mb: float = Field(default=1.0, description="Maximum attachment size to extract in MB")
     
     # RAG Configuration
     rag_persist_directory: str = Field(default="./faiss_db", description="RAG persistence directory")
@@ -56,7 +59,7 @@ class Settings(BaseSettings):
     chunking_sentence_overlap: int = Field(default=1, description="Sentence normalizer overlap (sentences)")
     chunking_semantic_embedding_model_name: str = Field(default="all-MiniLM-L6-v2", description="Semantic chunker embedding model name")
     chunking_semantic_model_size: str = Field(default="small", description="Model size: small, medium, large")
-    chunking_semantic_unload_model_after_use: bool = Field(default=False, description="Unload model after chunking to free memory")
+    chunking_semantic_unload_model_after_use: bool = Field(default=True, description="Unload model after chunking to free memory (enabled by default for memory efficiency)")
     chunking_semantic_max_chunk_tokens: int = Field(default=500, description="Semantic chunker max chunk tokens")
     chunking_semantic_similarity_threshold: float = Field(default=0.75, description="Semantic chunker fixed similarity threshold")
     chunking_semantic_threshold_type: str = Field(default="fixed", description="Semantic chunker threshold type (fixed/percentile)")

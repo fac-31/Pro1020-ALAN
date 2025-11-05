@@ -1,9 +1,9 @@
 """
-AI Service - Enhanced AI service with better error handling and configuration
+AI service module
 """
 
 import logging
-from typing import Dict, List
+from typing import Dict, List, Optional
 from openai import OpenAI
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 class AIService:
-    """Enhanced AI service with better error handling and configuration management"""
+    """AI service for generating email replies and other AI tasks"""
     
     def __init__(self):
         """Initialize AI service with configuration from settings"""
@@ -61,14 +61,6 @@ class AIService:
                 details={"original_error": str(e)}
             )
     
-    def _get_rag_engine(self):
-        """Lazy load RAG engine to avoid memory issues during startup"""
-        if self.rag_engine is None:
-            logger.info("Lazy loading RAG engine...")
-            self.rag_engine = RAGEngine()
-            logger.info("RAG engine loaded successfully")
-        return self.rag_engine
-    
     def _setup_langsmith_tracking(self):
         """Setup LangSmith tracking if API key is provided"""
         if settings.langsmith_api_key:
@@ -108,8 +100,18 @@ class AIService:
             # Extract query from email for RAG context
             query = self._extract_query_from_email(subject, body)
             
-            # Get relevant context from RAG
-            context = self._get_rag_engine().get_context_for_query(query, user_interests)
+            # Get relevant context from RAG (lazy load if needed)
+            context = None
+            try:
+                if self.rag_engine is None:
+                    logger.info("Lazy loading RAG engine...")
+                    self.rag_engine = RAGService()
+                    logger.info("RAG engine loaded successfully")
+                
+                context = self.rag_engine.get_context_for_query(query, user_interests)
+            except Exception as e:
+                logger.warning(f"RAG context retrieval failed: {e}, continuing without RAG context")
+                context = None
             
             # Create system prompt
             system_prompt = self._create_system_prompt(user_interests, context)
@@ -125,27 +127,23 @@ class AIService:
                 HumanMessage(content=human_message)
             ]
             
-            # Add metadata for LangSmith tracking
-            run_metadata = {
-                "sender_name": sender_name,
-                "sender_email": sender_email,
-                "subject": subject,
-                "user_interests": user_interests or [],
-                "context_documents": len(context) if context else 0,
-                "conversation_history_length": len(conversation_history) if conversation_history else 0
-            }
+            # Generate response
+            # Note: When LangSmith tracer is enabled, passing tags/metadata causes conflicts
+            # The tracer will automatically capture the run, so we don't need to pass anything extra
+            logger.info(f"Calling OpenAI API for email reply (context_docs: {len(context) if context else 0})")
+            if self.tracer:
+                # Don't pass any kwargs when tracer is enabled to avoid metadata conflicts
+                response = self.llm.invoke(messages)
+            else:
+                # When tracer is disabled, we can safely use tags
+                response = self.llm.invoke(messages, tags=["email_reply", "rag_powered"])
             
-            # Generate response with metadata
-            response = self.llm.invoke(
-                messages,
-                metadata=run_metadata,
-                tags=["email_reply", "rag_powered"]
-            )
-            
-            return response.content.strip()
+            reply_content = response.content.strip()
+            logger.info(f"Successfully generated AI reply ({len(reply_content)} characters)")
+            return reply_content
             
         except Exception as e:
-            logger.error(f"Error generating AI reply: {e}")
+            logger.error(f"Error generating AI reply: {e}", exc_info=True)  # Full traceback
             raise create_openai_error(f"Failed to generate email reply: {str(e)}")
     
     def generate_welcome_email(self, user_name: str, user_email: str, interests: List[str]) -> str:
@@ -253,7 +251,7 @@ class AIService:
                 "status": "healthy",
                 "openai_model": settings.openai_model,
                 "langsmith_enabled": self.tracer is not None,
-                "rag_engine_status": "connected" if self.rag_engine else "not_loaded",
+                "rag_engine_status": "connected" if self.rag_engine else "disconnected",
                 "api_test": "successful"
             }
         except Exception as e:
@@ -261,7 +259,7 @@ class AIService:
                 "status": "unhealthy",
                 "openai_model": settings.openai_model,
                 "langsmith_enabled": self.tracer is not None,
-                "rag_engine_status": "connected" if self.rag_engine else "not_loaded",
+                "rag_engine_status": "connected" if self.rag_engine else "disconnected",
                 "api_test": "failed",
                 "error": str(e)
             }

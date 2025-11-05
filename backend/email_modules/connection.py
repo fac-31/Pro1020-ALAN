@@ -2,7 +2,8 @@ import imaplib
 import smtplib
 import logging
 import unicodedata
-from typing import Optional, List
+import aiosmtplib
+from typing import Optional, List, Dict
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from .utils import clean_str
@@ -173,9 +174,8 @@ class EmailConnection:
             if mail:
                 self.close_imap_connection(mail)
     
-    def send_email(self, to_email: str, subject: str, body: str, original_subject: str = "") -> bool:
-        """Send email via SMTP"""
-        server = None
+    async def send_email(self, to_email: str, subject: str, body: str, original_subject: str = "") -> bool:
+        """Send email via SMTP (async)"""
         try:
             # Create message
             msg = MIMEMultipart()
@@ -193,13 +193,15 @@ class EmailConnection:
             # Add body
             msg.attach(MIMEText(body, 'plain'))
             
-            # Send email
-            server = self.get_smtp_connection()
-            if not server:
-                return False
-            
-            text = msg.as_string()
-            server.sendmail(self.gmail_user, to_email, text)
+            # Send email using async SMTP
+            await aiosmtplib.send(
+                msg,
+                hostname='smtp.gmail.com',
+                port=587,
+                start_tls=True,
+                username=self.gmail_user,
+                password=self.gmail_app_pass,
+            )
             
             logger.info(f"Email sent to {to_email}")
             return True
@@ -207,6 +209,3 @@ class EmailConnection:
         except Exception as e:
             logger.error(f"Error sending email: {e}")
             return False
-        finally:
-            if server:
-                self.close_smtp_connection(server)

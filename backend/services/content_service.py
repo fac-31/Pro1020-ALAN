@@ -3,6 +3,7 @@ Content Evaluation Service - Enhanced content evaluation with better error handl
 """
 
 import logging
+import json
 import requests
 from typing import Dict, List
 from dataclasses import dataclass
@@ -318,7 +319,6 @@ Evaluate this content for addition to Alan's knowledge base.
             )
             
             # Parse JSON response
-            import json
             result = json.loads(response.content.strip())
             
             return result

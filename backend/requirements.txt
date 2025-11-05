@@ -13,6 +13,8 @@ langsmith>=0.3.45
 tiktoken==0.12.0
 # Vector Database & Embeddings
 faiss-cpu==1.12.0
+# Note: PyTorch CPU-only installed via build.sh (or set TORCH_INSTALL_URL env var)
+# If build.sh is not used, install manually: pip install torch --index-url https://download.pytorch.org/whl/cpu
 sentence-transformers>=2.2.0
 # Data Processing
 numpy>=1.24.0
