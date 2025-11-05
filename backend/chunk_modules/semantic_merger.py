@@ -122,31 +122,34 @@ class SemanticChunker(BaseChunker):
                     current_chunk_embs.append(emb)
                     continue
 
-                # Calculate similarity with the last sentence in the current chunk
-                # Use float32 for final similarity calculations (FAISS compatibility)
+            # similarity to last sentence
                 emb_array = emb.reshape(1, -1).astype(np.float32)
                 last_emb_array = current_chunk_embs[-1].reshape(1, -1).astype(np.float32)
                 sim = cosine_similarity(emb_array, last_emb_array)[0][0]
-                
-                # Calculate current chunk length using tiktoken
+
                 current_chunk_text = " ".join(current_chunk_sentences)
                 current_length = self._calculate_token_length(current_chunk_text)
 
-                # Decide if a new chunk should start
-                if sim < current_similarity_threshold or current_length >= self.max_chunk_tokens:
+                # Should we start a new chunk?
+                split_for_semantic = sim < current_similarity_threshold
+                split_for_size = current_length >= self.max_chunk_tokens
+
+                if split_for_semantic or split_for_size:
                     chunks.append({"text": current_chunk_text, "metadata": metadata.copy()})
 
-                if current_length >= self.max_chunk_tokens:
-                    # Apply overlap only for size-based splits
-                    current_chunk_sentences = current_chunk_sentences[-self.overlap:] if self.overlap > 0 else []
-                    current_chunk_embs = current_chunk_embs[-self.overlap:] if self.overlap > 0 else []
-                else:
-                    # No overlap for semantic splits
-                    current_chunk_sentences = []
-                    current_chunk_embs = []
+                    if split_for_size:
+                        # Apply overlap
+                        current_chunk_sentences = current_chunk_sentences[-self.overlap:] if self.overlap > 0 else []
+                        current_chunk_embs = current_chunk_embs[-self.overlap:] if self.overlap > 0 else []
+                    else:
+                        # Semantic split → start fresh
+                        current_chunk_sentences = []
+                        current_chunk_embs = []
 
+                # Always append the current sentence after deciding on split
                 current_chunk_sentences.append(sent)
                 current_chunk_embs.append(emb)
+
 
             # Add the last chunk if it's not empty
             if current_chunk_sentences:

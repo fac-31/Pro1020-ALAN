@@ -7,6 +7,7 @@ import unittest
 import os
 import sys
 from unittest.mock import patch, MagicMock
+import numpy as np
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -78,13 +79,19 @@ class TestSemanticChunker(unittest.TestCase):
         mock_sentence_transformer.return_value = mock_model
 
         # Mock cosine similarity
-        mock_cosine.side_effect = [
-            [[0.9]],  # sim(0,1)
-            [[0.6]],  # sim(1,2)
-            [[0.3]]   # sim(2,3)
-        ]
+        mock_cosine.return_value = [[0.7]]
+        # return a value for each adjacent pair: (1,2), (2,3), (3,4)
+        
+        # Mock cosine similarity by computing it from the supplied embeddings
+        def cosine_side_effect(a, b, *args, **kwargs):
+            a_arr = np.asarray(a).reshape(-1)
+            b_arr = np.asarray(b).reshape(-1)
+            denom = np.linalg.norm(a_arr) * np.linalg.norm(b_arr)
+            if denom == 0:
+                return [[0.0]]
+            return [[float(np.dot(a_arr, b_arr) / denom)]]
 
-        # Mock np.percentile
+        mock_cosine.side_effect = cosine_side_effect
         mock_percentile.return_value = 0.6
 
         chunker = SemanticChunker(

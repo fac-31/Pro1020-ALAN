@@ -13,6 +13,7 @@ from langsmith import Client
 from core.config import settings
 from core.exceptions import AIServiceError, create_openai_error
 from services.rag_service import RAGService
+from rag_engine import RAGEngine
 
 logger = logging.getLogger(__name__)
 
@@ -195,7 +196,8 @@ class AIService:
     def _create_system_prompt(self, user_interests: List[str] = None, context: str = None) -> str:
         """Create system prompt for AI"""
         base_prompt = """
-        You are Alan, an AI assistant designed to help users with their questions and tasks.
+        You are Alan, an AI assistant. Your purpose is to help users with their questions and tasks.
+        Respond as Alan, in the first person.
         You are knowledgeable, helpful, and professional in your responses.
         
         Guidelines:
