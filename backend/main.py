@@ -52,7 +52,7 @@ async def startup_event():
         logger.info("RAG service initialized successfully")
         
         # Initialize AI service
-        app.state.ai_service = AIService()
+        app.state.ai_service = AIService(rag_service=app.state.rag_engine)
         logger.info("AI service initialized successfully")
         
         # Initialize content evaluation service

@@ -71,7 +71,9 @@ class RAGService:
                 model=settings.rag_embedding_model,
                 input=text
             )
-            return np.array(response.data[0].embedding, dtype=np.float32)
+            vec = np.array(response.data[0].embedding, dtype=np.float32)
+            norm = np.linalg.norm(vec)
+            return vec / (norm if norm > 0 else 1.0)
         except Exception as e:
             logger.error(f"Failed to get embedding for text: {e}")
             raise RAGServiceError(
@@ -287,10 +289,15 @@ class RAGService:
             logger.error(f"Failed to search documents: {e}")
             raise create_rag_search_error(f"Document search failed: {str(e)}")
     
-    def get_context_for_query(self, query: str, user_interests: List[str] = None) -> str:
+    def get_context_for_query(
+        self,
+        query: str,
+        user_interests: List[str] = None,
+        n_results: int = None
+    ) -> str:
         """Get context for a query"""
         try:
-            results = self.search_documents(query)
+            results = self.search_documents(query, n_results=n_results)
             
             if not results:
                 return "No relevant information found in the knowledge base."
@@ -318,19 +325,37 @@ class RAGService:
             logger.error(f"Failed to get context for query: {e}")
             return "Error retrieving context from knowledge base."
     
-    def add_news_article(self, title: str, content: str, topics: List[str], url: str, source: str = "news") -> bool:
-        """Add a news article to the knowledge base"""
+    def add_news_article(
+        self,
+        title: str,
+        content: str,
+        topics: List[str],
+        url: str,
+        source: str = "news"
+    ) -> bool:
+        """Add a news article to the knowledge base, splitting into chunks first"""
         try:
-            document = {
-                'content': f"{title}\n\n{content}",
-                'title': title,
-                'topics': topics,
-                'source': source,
-                'url': url
-            }
-            
-            return self.add_documents([document])
-            
+            # Chunk the full article text into smaller pieces
+            from chunk_modules.hybrid_chunker import HybridChunker
+
+            full_text = f"{title}\n\n{content}"
+            # honor global setting for semantic merging to avoid import errors
+            chunker = HybridChunker(use_semantic_merger=settings.use_semantic_merger)
+            chunks = chunker.chunk_document(
+                full_text,
+                metadata={
+                    'title': title,
+                    'topics': topics,
+                    'source': source,
+                    'url': url
+                }
+            )
+            # Prepare docs for FAISS: each chunk is one document entry
+            documents = [
+                {'content': chunk['text'], **chunk['metadata']}
+                for chunk in chunks
+            ]
+            return self.add_documents(documents)
         except Exception as e:
             logger.error(f"Failed to add news article: {e}")
             raise RAGServiceError(

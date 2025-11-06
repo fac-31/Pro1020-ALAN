@@ -12,7 +12,7 @@ from langsmith import Client
 
 from core.config import settings
 from core.exceptions import AIServiceError, create_openai_error
-from rag_engine import RAGEngine
+from services.rag_service import RAGService
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class AIService:
     """Enhanced AI service with better error handling and configuration management"""
     
-    def __init__(self):
+    def __init__(self, rag_service: RAGService):
         """Initialize AI service with configuration from settings"""
         try:
             self.openai_api_key = settings.openai_api_key
@@ -47,10 +47,10 @@ class AIService:
                 callbacks=callbacks
             )
             
-            # Lazy initialize RAG engine to avoid memory issues during startup
-            self.rag_engine = None
+            # Use the provided RAG service
+            self.rag_engine = rag_service
             
-            logger.info("AI Service initialized successfully (RAG engine will be loaded on first use)")
+            logger.info("AI Service initialized successfully")
             
         except AIServiceError:
             raise
@@ -60,14 +60,6 @@ class AIService:
                 error_code="AI_SERVICE_INIT_FAILED",
                 details={"original_error": str(e)}
             )
-    
-    def _get_rag_engine(self):
-        """Lazy load RAG engine to avoid memory issues during startup"""
-        if self.rag_engine is None:
-            logger.info("Lazy loading RAG engine...")
-            self.rag_engine = RAGEngine()
-            logger.info("RAG engine loaded successfully")
-        return self.rag_engine
     
     def _setup_langsmith_tracking(self):
         """Setup LangSmith tracking if API key is provided"""
@@ -109,7 +101,7 @@ class AIService:
             query = self._extract_query_from_email(subject, body)
             
             # Get relevant context from RAG
-            context = self._get_rag_engine().get_context_for_query(query, user_interests)
+            context = self.rag_engine.get_context_for_query(query, user_interests)
             
             # Create system prompt
             system_prompt = self._create_system_prompt(user_interests, context)

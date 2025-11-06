@@ -57,6 +57,7 @@ class Settings(BaseSettings):
     chunking_recursive_chunk_size: int = Field(default=1000, description="Recursive splitter chunk size (tokens)")
     chunking_recursive_overlap: int = Field(default=200, description="Recursive splitter overlap (tokens)")
     chunking_sentence_overlap: int = Field(default=1, description="Sentence normalizer overlap (sentences)")
+    use_semantic_merger: bool = Field(default=False, description="Enable semantic merger for chunking")
     chunking_semantic_embedding_model_name: str = Field(default="all-MiniLM-L6-v2", description="Semantic chunker embedding model name")
     chunking_semantic_model_size: str = Field(default="small", description="Model size: small, medium, large")
     chunking_semantic_unload_model_after_use: bool = Field(default=True, description="Unload model after chunking to free memory (enabled by default for memory efficiency)")

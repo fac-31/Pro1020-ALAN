@@ -11,6 +11,7 @@ from services.ai_service import AIService
 # Add parent directory to path to allow sibling imports
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from core.config import settings
 
 # --- Router Setup ---
 router = APIRouter()
@@ -128,6 +129,24 @@ async def search_knowledge_base(
         logger.error(f"Error searching knowledge base: {e}")
         raise HTTPException(status_code=500, detail=f"Error searching knowledge base: {str(e)}")
 
+
+@router.get("/faiss/chunks", tags=["RAG"])
+async def get_faiss_chunks():
+    """Return the raw FAISS metadata.json documents (indexed chunks)"""
+    try:
+        meta_path = os.path.join(settings.rag_persist_directory, "metadata.json")
+        if not os.path.exists(meta_path):
+            raise HTTPException(status_code=404, detail="FAISS metadata.json not found")
+        with open(meta_path, 'r') as f:
+            data = json.load(f)
+        # Return the list of document chunks and their metadata
+        return {"status": "success", "chunks": data.get("documents", []), "metadata": data.get("metadata", [])}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error loading FAISS chunks: {e}")
+        raise HTTPException(status_code=500, detail=f"Error loading FAISS chunks: {str(e)}")
+
 @router.get("/knowledge-base/stats", tags=["RAG"])
 async def get_knowledge_base_stats(
     rag_engine: RAGService = Depends(get_rag_engine)
@@ -202,7 +221,8 @@ async def test_rag_response(
     """Test RAG-powered response generation"""
     try:
         # Generate a test response using RAG
-        rag_engine = ai_service._get_rag_engine()
+        # Access the RAG engine attached to the AI service
+        rag_engine = ai_service.rag_engine
         context = rag_engine.get_context_for_query(
             query=query_request.query,
             user_interests=query_request.user_interests,

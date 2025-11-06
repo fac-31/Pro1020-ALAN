@@ -4,13 +4,16 @@ const SandBox = () => {
   return (
     <div>
       <h1>Sandbox</h1>
-      <Link className='flex' to='upload'>
+      <Link className="flex" to="db">
+        Database
+      </Link>
+      <Link className="flex" to="upload">
         Upload
       </Link>
-      <Link className='flex' to='search'>
+      <Link className="flex" to="search">
         Search
       </Link>
-      <Link className='flex' to='chat'>
+      <Link className="flex" to="chat">
         Chat
       </Link>
     </div>

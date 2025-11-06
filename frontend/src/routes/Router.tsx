@@ -4,6 +4,7 @@ import SandBox from '../pages/Sandbox/SandBox';
 import Chat from '../pages/Sandbox/Chat';
 import Upload from '../pages/Sandbox/Upload';
 import Search from '../pages/Sandbox/Search';
+import Database from '../pages/Sandbox/Database';
 
 const router = createBrowserRouter([
   {
@@ -26,6 +27,10 @@ const router = createBrowserRouter([
     path: 'sandbox/search',
     element: <Search />,
   },
+  {
+    path: 'sandbox/db', 
+    element: <Database />
+  }
 ]);
 
 export default function Router() {

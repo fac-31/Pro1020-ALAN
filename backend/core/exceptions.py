@@ -111,15 +111,23 @@ EXCEPTION_TO_HTTP_STATUS = {
 }
 
 
-def convert_to_http_exception(exc: AlanBaseException) -> HTTPException:
-    """Convert AlanBaseException to FastAPI HTTPException"""
-    status_code = EXCEPTION_TO_HTTP_STATUS.get(type(exc), 500)
-    
-    detail = {
-        "error": exc.message,
-        "error_code": exc.error_code,
-        "details": exc.details
-    }
+def convert_to_http_exception(exc: Exception) -> HTTPException:
+    """Convert any exception to FastAPI HTTPException"""
+    if isinstance(exc, AlanBaseException):
+        status_code = EXCEPTION_TO_HTTP_STATUS.get(type(exc), 500)
+        
+        detail = {
+            "error": exc.message,
+            "error_code": exc.error_code,
+            "details": exc.details
+        }
+    else:
+        status_code = 500
+        detail = {
+            "error": "An unexpected internal server error occurred.",
+            "error_code": "INTERNAL_SERVER_ERROR",
+            "details": {"original_error": str(exc)}
+        }
     
     return HTTPException(status_code=status_code, detail=detail)
 

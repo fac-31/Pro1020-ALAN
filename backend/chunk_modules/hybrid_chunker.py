@@ -1,7 +1,8 @@
+import os
 from typing import List, Dict, Optional
 from .recursive_splitter import RecursiveSplitter
 from .normalise_sentence import NormaliseSentence
-from .semantic_merger import SemanticChunker # Updated import
+
 
 class HybridChunker:
     def __init__(
@@ -9,6 +10,7 @@ class HybridChunker:
         recursive_chunk_size: int = 1000,
         recursive_overlap: int = 200,
         sentence_overlap: int = 1,
+        use_semantic_merger: Optional[bool] = None,
         semantic_embedding_model_name: str = "all-MiniLM-L6-v2",
         semantic_model_size: str = "small",
         semantic_max_chunk_tokens: int = 500,
@@ -19,19 +21,29 @@ class HybridChunker:
         semantic_unload_model_after_use: bool = False,
         semantic_embedding_batch_size: int = 32
     ):
+        if use_semantic_merger is None:
+            use_semantic_merger_str = os.environ.get("USE_SEMANTIC_MERGER", "True")
+            self.use_semantic_merger = use_semantic_merger_str.lower() in ('true', '1', 't')
+        else:
+            self.use_semantic_merger = use_semantic_merger
+
         self.recursive = RecursiveSplitter(chunk_size=recursive_chunk_size, overlap=recursive_overlap)
         self.normalizer = NormaliseSentence(sentence_overlap=sentence_overlap)
-        self.semantic = SemanticChunker(
-            embedding_model_name=semantic_embedding_model_name,
-            model_size=semantic_model_size,
-            max_chunk_tokens=semantic_max_chunk_tokens,
-            similarity_threshold=semantic_similarity_threshold,
-            threshold_type=semantic_threshold_type,
-            threshold_percentile=semantic_threshold_percentile,
-            overlap=semantic_overlap,
-            unload_model_after_use=semantic_unload_model_after_use,
-            embedding_batch_size=semantic_embedding_batch_size
-        )
+        
+        self.semantic = None
+        if self.use_semantic_merger:
+            from .semantic_merger import SemanticChunker
+            self.semantic = SemanticChunker(
+                embedding_model_name=semantic_embedding_model_name,
+                model_size=semantic_model_size,
+                max_chunk_tokens=semantic_max_chunk_tokens,
+                similarity_threshold=semantic_similarity_threshold,
+                threshold_type=semantic_threshold_type,
+                threshold_percentile=semantic_threshold_percentile,
+                overlap=semantic_overlap,
+                unload_model_after_use=semantic_unload_model_after_use,
+                embedding_batch_size=semantic_embedding_batch_size
+            )
 
     def chunk_document(self, text: str, metadata: Optional[Dict] = None) -> List[Dict]:
         if metadata is None:
@@ -40,6 +52,14 @@ class HybridChunker:
         final_chunks = []
         coarse_chunks = self.recursive.split(text)
         normalized_chunks = self.normalizer.normalize(coarse_chunks)
+
+        if not self.use_semantic_merger or self.semantic is None:
+            for i, chunk_text in enumerate(normalized_chunks):
+                final_chunks.append({
+                    'text': chunk_text,
+                    'metadata': {**metadata.copy(), "coarse_index": i}
+                })
+            return final_chunks
 
         for i, chunk_text in enumerate(normalized_chunks):
             # Pass original metadata and coarse index to semantic chunker

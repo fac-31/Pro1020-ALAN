@@ -51,6 +51,7 @@ class SemanticChunker(BaseChunker):
     def _get_model(self):
         """Lazy load the SentenceTransformer model"""
         if self.model is None:
+            from sentence_transformers import SentenceTransformer
             self.model = SentenceTransformer(self.embedding_model_name)
         return self.model
 
