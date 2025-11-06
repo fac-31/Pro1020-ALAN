@@ -1,0 +1,9 @@
+### Search Alan's Knowledge Base
+POST http://127.0.0.1:8000/search
+Content-Type: application/json
+
+{
+  "query": "adapt",
+  "user_interests": ["Technology", "AI", "NLP"],
+  "n_results": 3
+}

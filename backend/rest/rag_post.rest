@@ -1,0 +1,9 @@
+### Test RAG-powered response
+POST http://127.0.0.1:8000/test-rag
+Content-Type: application/json
+
+{
+  "query": "What are the benefits of using retrieval-augmented generation?",
+  "user_interests": ["AI", "NLP"],
+  "n_results": 3
+}

@@ -4,9 +4,9 @@ import logging
 from fastapi import APIRouter, HTTPException, Depends, Request, UploadFile, File
 from pydantic import BaseModel
 from typing import List, Dict, Optional
-from rag_engine import RAGEngine
-from daily_digest import DailyDigestService
-from ai_modules.ai_service import AIService
+from services.rag_service import RAGService
+from email_modules.daily_digest import DailyDigestService
+from services.ai_service import AIService
 
 # Add parent directory to path to allow sibling imports
 import sys
@@ -39,7 +39,7 @@ class UserDigest(BaseModel):
     name: str = ""
 
 # --- Dependency Injection ---
-def get_rag_engine(request: Request) -> RAGEngine:
+def get_rag_engine(request: Request) -> RAGService:
     """Dependency to get the RAG engine from application state."""
     if not hasattr(request.app.state, 'rag_engine') or not request.app.state.rag_engine:
         raise HTTPException(status_code=503, detail="RAG engine is not available.")
@@ -62,7 +62,7 @@ def get_digest_service(request: Request) -> DailyDigestService:
 @router.post("/documents/upload", tags=["Documents"])
 async def upload_document(
     document: DocumentUpload,
-    rag_engine: RAGEngine = Depends(get_rag_engine)
+    rag_engine: RAGService = Depends(get_rag_engine)
 ):
     """Upload a document to Alan's knowledge base"""
     try:
@@ -85,7 +85,7 @@ async def upload_document(
 @router.post("/news/add", tags=["News"])
 async def add_news_article(
     article: NewsArticle,
-    rag_engine: RAGEngine = Depends(get_rag_engine)
+    rag_engine: RAGService = Depends(get_rag_engine)
 ):
     """Add a news article to Alan's knowledge base"""
     try:
@@ -108,14 +108,13 @@ async def add_news_article(
 @router.post("/search", tags=["RAG"])
 async def search_knowledge_base(
     query_request: QueryRequest,
-    rag_engine: RAGEngine = Depends(get_rag_engine)
+    rag_engine: RAGService = Depends(get_rag_engine)
 ):
     """Search Alan's knowledge base using RAG"""
     try:
         results = rag_engine.search_documents(
             query=query_request.query,
-            n_results=query_request.n_results,
-            filter_metadata={"topics": {"$in": query_request.user_interests}} if query_request.user_interests else None
+            n_results=query_request.n_results
         )
         
         return {
@@ -131,7 +130,7 @@ async def search_knowledge_base(
 
 @router.get("/knowledge-base/stats", tags=["RAG"])
 async def get_knowledge_base_stats(
-    rag_engine: RAGEngine = Depends(get_rag_engine)
+    rag_engine: RAGService = Depends(get_rag_engine)
 ):
     """Get statistics about Alan's knowledge base"""
     try:
@@ -203,7 +202,8 @@ async def test_rag_response(
     """Test RAG-powered response generation"""
     try:
         # Generate a test response using RAG
-        context = ai_service.rag_engine.get_context_for_query(
+        rag_engine = ai_service._get_rag_engine()
+        context = rag_engine.get_context_for_query(
             query=query_request.query,
             user_interests=query_request.user_interests,
             n_results=query_request.n_results

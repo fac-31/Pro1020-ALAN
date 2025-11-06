@@ -12,7 +12,7 @@ class ReplyGenerator:
     def _get_ai_service(self):
         """Lazy import of AIService to avoid circular dependency"""
         if self.ai_service is None:
-            from ai_modules.ai_service import AIService
+            from services.ai_service import AIService
             self.ai_service = AIService()
         return self.ai_service
     
@@ -63,7 +63,7 @@ class ReplyGenerator:
             return reply
             
         except Exception as e:
-            logger.error(f"Error generating AI reply: {e}", exc_info=True)  # Add full traceback
+            logger.error(f"Error generating AI reply: {e}")
             # Fallback to simple reply
             return self._generate_fallback_reply(sender_name, subject)
 

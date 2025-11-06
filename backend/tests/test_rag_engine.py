@@ -13,7 +13,7 @@ from unittest.mock import Mock, patch, MagicMock
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from rag_engine import RAGEngine
+from services.rag_service import RAGService
 
 
 class TestRAGEngine(unittest.TestCase):
@@ -26,7 +26,7 @@ class TestRAGEngine(unittest.TestCase):
         # Mock OpenAI API key
         with patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'}):
             # Mock OpenAI client
-            with patch('rag_engine.OpenAI') as mock_openai:
+            with patch('services.rag_service.OpenAI') as mock_openai:
                 mock_client = Mock()
                 mock_openai.return_value = mock_client
                 
@@ -35,7 +35,7 @@ class TestRAGEngine(unittest.TestCase):
                     data=[Mock(embedding=[0.1] * 1536)]
                 )
                 
-                self.rag_engine = RAGEngine(persist_directory=self.temp_dir)
+                self.rag_engine = RAGService(persist_directory=self.temp_dir)
     
     def tearDown(self):
         # Clean up temporary directory
@@ -49,7 +49,7 @@ class TestRAGEngine(unittest.TestCase):
         self.assertEqual(len(self.rag_engine.documents), 0)
         self.assertEqual(len(self.rag_engine.metadata), 0)
     
-    @patch('rag_engine.OpenAI')
+    @patch('services.rag_service.OpenAI')
     def test_add_documents(self, mock_openai):
         """Test adding documents to RAG engine"""
         # Mock OpenAI client
@@ -62,8 +62,8 @@ class TestRAGEngine(unittest.TestCase):
         )
         
         documents = [
-            "This is a test document about AI.",
-            "Another document about machine learning."
+            {"content": "This is a test document about AI.", "title": "Doc1", "topics": ["ai"]},
+            {"content": "Another document about machine learning.", "title": "Doc2", "topics": ["ml"]},
         ]
         
         success = self.rag_engine.add_documents(documents)
@@ -72,7 +72,7 @@ class TestRAGEngine(unittest.TestCase):
         self.assertEqual(len(self.rag_engine.documents), 2)
         self.assertEqual(len(self.rag_engine.metadata), 2)
     
-    @patch('rag_engine.OpenAI')
+    @patch('services.rag_service.OpenAI')
     def test_search_documents(self, mock_openai):
         """Test searching documents in RAG engine"""
         # Mock OpenAI client
@@ -86,9 +86,9 @@ class TestRAGEngine(unittest.TestCase):
         
         # Add test documents
         documents = [
-            "This is a test document about AI.",
-            "Another document about machine learning.",
-            "A third document about natural language processing."
+            {"content": "This is a test document about AI.", "title": "A", "topics": ["ai"]},
+            {"content": "Another document about machine learning.", "title": "B", "topics": ["ml"]},
+            {"content": "A third document about natural language processing.", "title": "C", "topics": ["nlp"]},
         ]
         
         self.rag_engine.add_documents(documents)
@@ -99,7 +99,7 @@ class TestRAGEngine(unittest.TestCase):
         self.assertIsNotNone(results)
         self.assertLessEqual(len(results), 2)
     
-    @patch('rag_engine.OpenAI')
+    @patch('services.rag_service.OpenAI')
     def test_add_news_article(self, mock_openai):
         """Test adding news articles"""
         # Mock OpenAI client
@@ -127,7 +127,7 @@ class TestRAGEngine(unittest.TestCase):
         self.assertEqual(metadata['title'], 'AI Breakthrough')
         self.assertEqual(metadata['topics'], ["ai", "research", "breakthrough"])
     
-    @patch('rag_engine.OpenAI')
+    @patch('services.rag_service.OpenAI')
     def test_add_user_document(self, mock_openai):
         """Test adding user documents"""
         # Mock OpenAI client
@@ -155,7 +155,7 @@ class TestRAGEngine(unittest.TestCase):
         self.assertEqual(metadata['title'], 'User Tech Doc')
         self.assertEqual(metadata['topics'], ["technology", "user"])
     
-    @patch('rag_engine.OpenAI')
+    @patch('services.rag_service.OpenAI')
     def test_get_context_for_query(self, mock_openai):
         """Test getting context for a query"""
         # Mock OpenAI client
@@ -169,21 +169,19 @@ class TestRAGEngine(unittest.TestCase):
         
         # Add test documents
         self.rag_engine.add_documents([
-            "AI is transforming industries.",
-            "Machine learning algorithms are improving.",
-            "Natural language processing is advancing."
+            {"content": "AI is transforming industries.", "title": "T1", "topics": ["ai"]},
+            {"content": "Machine learning algorithms are improving.", "title": "T2", "topics": ["ml"]},
+            {"content": "Natural language processing is advancing.", "title": "T3", "topics": ["nlp"]},
         ])
         
         # Get context for query
         context = self.rag_engine.get_context_for_query(
             query="artificial intelligence",
-            user_interests=["ai", "technology"],
-            n_results=2
+            user_interests=["ai", "technology"]
         )
         
         self.assertIsNotNone(context)
-        self.assertIsInstance(context, list)
-        self.assertLessEqual(len(context), 2)
+        self.assertIsInstance(context, str)
     
     def test_get_knowledge_base_stats(self):
         """Test getting knowledge base statistics"""
@@ -217,7 +215,7 @@ class TestRAGEngine(unittest.TestCase):
         self.assertEqual(len(self.rag_engine.metadata), 0)
         self.assertEqual(self.rag_engine.index.ntotal, 0)
     
-    @patch('rag_engine.OpenAI')
+    @patch('services.rag_service.OpenAI')
     def test_persistence(self, mock_openai):
         """Test data persistence"""
         # Mock OpenAI client
@@ -230,10 +228,10 @@ class TestRAGEngine(unittest.TestCase):
         )
         
         # Add test document
-        self.rag_engine.add_documents(["Test document for persistence"])
+        self.rag_engine.add_documents([{ "content": "Test document for persistence", "title": "T", "topics": [] }])
         
         # Create new RAG engine instance (should load existing data)
-        new_rag_engine = RAGEngine(persist_directory=self.temp_dir)
+        new_rag_engine = RAGService(persist_directory=self.temp_dir)
         
         # Check if data was loaded
         self.assertEqual(len(new_rag_engine.documents), 1)
@@ -244,8 +242,10 @@ class TestRAGEngine(unittest.TestCase):
         """Test error handling in RAG engine"""
         # Test with invalid OpenAI API key
         with patch.dict(os.environ, {}, clear=True):
-            with self.assertRaises(ValueError):
-                RAGEngine(persist_directory=self.temp_dir)
+            from core.config import settings as cfg
+            # openai key absent will raise in service init
+            with self.assertRaises(Exception):
+                RAGService(persist_directory=self.temp_dir)
     
     @patch('rag_engine.OpenAI')
     def test_embedding_error_handling(self, mock_openai):

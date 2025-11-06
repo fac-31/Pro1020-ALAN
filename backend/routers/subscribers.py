@@ -5,10 +5,7 @@ from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 from typing import List, Dict
 
-# Add parent directory to path to allow sibling imports
-import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from email_client import EmailClient
+from services.email_service import EmailService
 from email_modules.reply_generator import ReplyGenerator
 
 # --- Router Setup ---
@@ -45,7 +42,7 @@ class SubscribeForm(BaseModel):
     interests: list[str]
 
 # --- Dependency Injection ---
-def get_email_client(request: Request) -> EmailClient:
+def get_email_client(request: Request) -> EmailService:
     """Dependency to get the email client from application state."""
     if not hasattr(request.app.state, 'email_client') or not request.app.state.email_client:
         raise HTTPException(status_code=503, detail="Email service is not available.")
@@ -53,7 +50,7 @@ def get_email_client(request: Request) -> EmailClient:
 
 # --- API Endpoints ---
 @router.post("/subscribe", status_code=201, tags=["Subscribers"])
-async def subscribe_user(form: SubscribeForm, email_client: EmailClient = Depends(get_email_client)):
+async def subscribe_user(form: SubscribeForm, email_client: EmailService = Depends(get_email_client)):
     """Handle user subscription form submission"""
     subscribers = load_subscribers()
     if any(s['email'] == form.email for s in subscribers):

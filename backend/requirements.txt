@@ -1,31 +1,28 @@
-# Core Framework
+annotated-types==0.7.0
+anyio==4.11.0
+click==8.3.0
 fastapi==0.119.1
-uvicorn==0.38.0
+h11==0.16.0
+idna==3.11
 pydantic==2.12.3
 pydantic-settings>=2.10.1
-# AI/ML Libraries
+pydantic_core==2.41.4
+sniffio==1.3.1
+starlette==0.48.0
+typing-inspection==0.4.2
+typing_extensions==4.15.0
+uvicorn==0.38.0
+python-dotenv==1.0.0
+imapclient==3.0.1
+aiosmtplib==3.0.2
+email-validator==2.1.1
 openai==2.6.1
 langchain==1.0.2
 langchain-openai==1.0.1
 langchain-community==0.4
-langchain-text-splitters>=0.0.1
-langsmith>=0.3.45
 tiktoken==0.12.0
-# Vector Database & Embeddings
 faiss-cpu==1.12.0
-# Note: PyTorch CPU-only installed via build.sh (or set TORCH_INSTALL_URL env var)
-# If build.sh is not used, install manually: pip install torch --index-url https://download.pytorch.org/whl/cpu
-sentence-transformers>=2.2.0
-# Data Processing
-numpy>=1.24.0
-scikit-learn>=1.3.0
-nltk==3.8.1
-# Email
-imapclient==3.0.1
-aiosmtplib==3.0.2
-email-validator==2.1.1
-# Web Scraping & HTTP
-requests>=2.31.0
-beautifulsoup4>=4.12.0
-# Configuration & Utilities
-python-dotenv==1.0.0
+chromadb==0.3.23
+langsmith>=0.3.45
+requests>=2.32.5
+beautifulsoup4==4.12.3

@@ -7,8 +7,7 @@ from fastapi.responses import JSONResponse
 
 from core.config import settings
 from core.exceptions import convert_to_http_exception
-from core.nltk_setup import setup_nltk_data # Import the NLTK setup function
-from email_client_init import initialize_email_client, shutdown_email_client
+from email_modules.email_client_init import initialize_email_client, shutdown_email_client
 from routers.subscribers import router as subscribers_router
 from routers.rag import router as rag_router
 from services.rag_service import RAGService
@@ -42,60 +41,44 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize all services with enhanced error handling - non-blocking"""
-    logger.info("Server starting - initializing services in background...")
-    
-    # Start initialization in background task IMMEDIATELY (don't await)
-    # This allows the server to bind to the port right away
-    async def _initialize_services():
-        try:
-            # Run NLTK setup in thread pool to avoid blocking
-            await asyncio.to_thread(setup_nltk_data)
-            logger.info("NLTK setup completed")
-
-            # Initialize email service
-            app.state.email_service = EmailService()
-            logger.info("Email service initialized successfully")
-            
-            # Initialize RAG service
-            app.state.rag_service = RAGService()
-            logger.info("RAG service initialized successfully")
-            
-            # Initialize AI service
-            app.state.ai_service = AIService()
-            logger.info("AI service initialized successfully")
-            
-            # Initialize content evaluation service
-            app.state.content_service = ContentEvaluationService()
-            logger.info("Content evaluation service initialized successfully")
-            
-            # Initialize daily digest service
-            app.state.digest_service = DailyDigestService(
-                email_service=app.state.email_service,
-                ai_service=app.state.ai_service,
-                rag_service=app.state.rag_service
-            )
-            logger.info("Daily digest service initialized successfully")
-            
-            # Start daily digest task
-            app.state.digest_task = asyncio.create_task(app.state.digest_service.daily_digest_task())
-            logger.info("Daily digest task started")
-            
-            # Initialize email client for backward compatibility
-            await initialize_email_client(app)
-            
-            logger.info("All services initialized successfully")
-            
-        except Exception as e:
-            logger.error(f"Failed to initialize services: {e}", exc_info=True)
-            # Don't raise - allow server to start even if some services fail
-            # Services will be None and endpoints can handle gracefully
-    
-    # Start initialization in background - server will bind immediately
-    asyncio.create_task(_initialize_services())
-    
-    # Return immediately - don't wait for services to initialize
-    logger.info("Startup event completed - server binding to port...")
+    """Initialize all services with enhanced error handling"""
+    try:
+        # Initialize email service
+        app.state.email_service = EmailService()
+        logger.info("Email service initialized successfully")
+        
+        # Initialize RAG service
+        app.state.rag_engine = RAGService()
+        logger.info("RAG service initialized successfully")
+        
+        # Initialize AI service
+        app.state.ai_service = AIService()
+        logger.info("AI service initialized successfully")
+        
+        # Initialize content evaluation service
+        app.state.content_service = ContentEvaluationService()
+        logger.info("Content evaluation service initialized successfully")
+        
+        # Initialize daily digest service
+        app.state.digest_service = DailyDigestService(
+            email_service=app.state.email_service,
+            ai_service=app.state.ai_service,
+            rag_service=app.state.rag_engine
+        )
+        logger.info("Daily digest service initialized successfully")
+        
+        # Start daily digest task
+        app.state.digest_task = asyncio.create_task(app.state.digest_service.daily_digest_task())
+        logger.info("Daily digest task started")
+        
+        # Initialize email client for backward compatibility
+        await initialize_email_client(app)
+        
+    except Exception as e:
+        logger.error(f"Failed to initialize services: {e}")
+        # Convert to HTTP exception for better error handling
+        http_exc = convert_to_http_exception(e)
+        raise http_exc
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -151,58 +134,28 @@ def health_check():
     try:
         services = {}
         
-        # Check each service status (gracefully handle if not initialized)
-        if hasattr(app.state, "email_service") and app.state.email_service:
-            try:
-                services["email_service"] = app.state.email_service.get_service_status()
-            except Exception as e:
-                services["email_service"] = {"status": "uninitialized", "error": str(e)}
-        else:
-            services["email_service"] = {"status": "not_initialized"}
+        # Check each service status
+        if hasattr(app.state, "email_service"):
+            services["email_service"] = app.state.email_service.get_service_status()
         
-        if hasattr(app.state, "rag_service") and app.state.rag_service:
-            try:
-                services["rag_service"] = app.state.rag_service.get_service_status()
-            except Exception as e:
-                services["rag_service"] = {"status": "uninitialized", "error": str(e)}
-        else:
-            services["rag_service"] = {"status": "not_initialized"}
+        if hasattr(app.state, "rag_engine"):
+            services["rag_engine"] = app.state.rag_engine.get_service_status()
         
-        if hasattr(app.state, "ai_service") and app.state.ai_service:
-            try:
-                services["ai_service"] = app.state.ai_service.get_service_status()
-            except Exception as e:
-                services["ai_service"] = {"status": "uninitialized", "error": str(e)}
-        else:
-            services["ai_service"] = {"status": "not_initialized"}
+        if hasattr(app.state, "ai_service"):
+            services["ai_service"] = app.state.ai_service.get_service_status()
         
-        if hasattr(app.state, "content_service") and app.state.content_service:
-            try:
-                services["content_service"] = app.state.content_service.get_service_status()
-            except Exception as e:
-                services["content_service"] = {"status": "uninitialized", "error": str(e)}
-        else:
-            services["content_service"] = {"status": "not_initialized"}
+        if hasattr(app.state, "content_service"):
+            services["content_service"] = app.state.content_service.get_service_status()
         
-        if hasattr(app.state, "digest_service") and app.state.digest_service:
-            try:
-                services["digest_service"] = app.state.digest_service.get_service_status()
-            except Exception as e:
-                services["digest_service"] = {"status": "uninitialized", "error": str(e)}
-        else:
-            services["digest_service"] = {"status": "not_initialized"}
+        if hasattr(app.state, "digest_service"):
+            services["digest_service"] = app.state.digest_service.get_service_status()
         
-        # Determine overall health - allow server to be "starting" if services not ready
-        overall_status = "starting"
-        has_healthy = False
+        # Determine overall health
+        overall_status = "healthy"
         for service_name, service_status in services.items():
-            if service_status.get("status") == "healthy":
-                has_healthy = True
-            elif service_status.get("status") == "unhealthy":
+            if service_status.get("status") != "healthy":
                 overall_status = "degraded"
-        
-        if has_healthy and overall_status == "starting":
-            overall_status = "healthy"
+                break
         
         return {
             "status": overall_status,
@@ -215,7 +168,7 @@ def health_check():
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         return {
-            "status": "starting",  # Return starting instead of unhealthy so Render doesn't fail
+            "status": "unhealthy",
             "error": str(e),
             "timestamp": datetime.now().isoformat()
         }
@@ -228,56 +181,6 @@ def get_processed_messages():
     
     processed_ids = app.state.email_client.load_processed_ids()
     return JSONResponse(content={"processed_message_ids": processed_ids})
-
-@app.get("/email/status")
-def email_status():
-    """Check email polling task status and email client health"""
-    status = {
-        "email_client_initialized": hasattr(app.state, "email_client") and app.state.email_client is not None,
-        "polling_task_initialized": hasattr(app.state, "polling_task") and app.state.polling_task is not None,
-        "polling_task_running": False,
-        "polling_task_error": None,
-        "email_service_status": None
-    }
-    
-    if status["polling_task_initialized"]:
-        task = app.state.polling_task
-        status["polling_task_running"] = not task.done()
-        if task.done():
-            try:
-                error = task.exception()
-                if error:
-                    status["polling_task_error"] = str(error)
-            except Exception as e:
-                status["polling_task_error"] = f"Error checking task: {e}"
-    
-    if status["email_client_initialized"]:
-        try:
-            status["email_service_status"] = app.state.email_service.get_service_status() if hasattr(app.state, "email_service") else None
-        except Exception as e:
-            status["email_service_status"] = {"error": str(e)}
-    
-    return status
-
-@app.post("/email/check")
-async def manual_email_check():
-    """Manually trigger email checking (for testing/debugging)"""
-    if not getattr(app.state, "email_client", None):
-        raise HTTPException(status_code=503, detail="Email service is not available.")
-    
-    try:
-        email_client = app.state.email_client
-        unread_emails = await asyncio.to_thread(email_client.check_unread_emails)
-        
-        return {
-            "success": True,
-            "unread_count": len(unread_emails),
-            "emails": [{"sender": e.get("sender_email"), "subject": e.get("subject")} for e in unread_emails],
-            "message": f"Found {len(unread_emails)} unread emails"
-        }
-    except Exception as e:
-        logger.error(f"Manual email check failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Email check failed: {str(e)}")
 
 # --- Middleware ---
 app.add_middleware(

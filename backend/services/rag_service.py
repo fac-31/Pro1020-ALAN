@@ -203,6 +203,7 @@ class RAGService:
                         'title': doc.get('title', ''),
                         'topics': doc.get('topics', []),
                         'source': doc.get('source', 'manual'),
+                        'url': doc.get('url'),
                         'added_at': datetime.now().isoformat()
                     })
                 
@@ -317,14 +318,15 @@ class RAGService:
             logger.error(f"Failed to get context for query: {e}")
             return "Error retrieving context from knowledge base."
     
-    def add_news_article(self, title: str, content: str, topics: List[str], source: str = "news") -> bool:
+    def add_news_article(self, title: str, content: str, topics: List[str], url: str, source: str = "news") -> bool:
         """Add a news article to the knowledge base"""
         try:
             document = {
                 'content': f"{title}\n\n{content}",
                 'title': title,
                 'topics': topics,
-                'source': source
+                'source': source,
+                'url': url
             }
             
             return self.add_documents([document])

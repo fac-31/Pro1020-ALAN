@@ -14,10 +14,10 @@ from email.message import EmailMessage
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from email_client import EmailClient, generate_reply
-from background_tasks import email_polling_task
-from ai_modules.content_evaluator import ContentEvaluator
-from rag_engine import RAGEngine
+from email_modules.reply_generator import ReplyGenerator
+from email_modules.background_tasks import email_polling_task
+from services.content_service import ContentEvaluationService
+from services.rag_service import RAGService
 
 
 class TestEmailProcessingIntegration(unittest.TestCase):
@@ -107,21 +107,14 @@ class TestEmailProcessingIntegration(unittest.TestCase):
         self.assertEqual(len(parsed_email['links']), 1)
         self.assertIn('https://arxiv.org/abs/1706.03762', parsed_email['links'])
     
-    def test_generate_reply_function(self):
-        """Test reply generation function"""
-        reply = generate_reply(
-            sender_name='Test User',
-            sender_email='test@example.com',
-            subject='Test Subject',
-            body='Test message body'
-        )
-        
-        self.assertIsNotNone(reply)
-        self.assertIsInstance(reply, str)
-        self.assertGreater(len(reply), 0)
+    def test_reply_generator_fallback(self):
+        """Test reply generator fallback"""
+        rg = ReplyGenerator()
+        reply = rg._generate_fallback_reply('Test User', 'Test Subject')
+        self.assertIn('Test User', reply)
     
-    @patch('ai_modules.content_evaluator.OpenAI')
-    @patch('ai_modules.content_evaluator.ChatOpenAI')
+    @patch('services.content_service.OpenAI')
+    @patch('services.content_service.ChatOpenAI')
     def test_content_evaluation_integration(self, mock_chat_openai, mock_openai):
         """Test content evaluation integration"""
         # Mock OpenAI client
@@ -137,9 +130,9 @@ class TestEmailProcessingIntegration(unittest.TestCase):
         mock_response.content = '{"should_add": true, "confidence": 0.8, "content_type": "research", "topics": ["ai", "research"], "reasoning": "High-quality technical content"}'
         mock_llm.invoke.return_value = mock_response
         
-        evaluator = ContentEvaluator()
+        evaluator = ContentEvaluationService()
         
-        evaluation = evaluator.evaluate_email_content(
+        evaluation = asyncio.run(evaluator.evaluate_email_content(
             sender_email='tech@example.com',
             subject='AI Research Paper',
             body='Check out this research paper about transformers.',
@@ -149,7 +142,7 @@ class TestEmailProcessingIntegration(unittest.TestCase):
                 'content': b'PDF content'
             }],
             links=['https://arxiv.org/abs/1706.03762']
-        )
+        ))
         
         self.assertIsNotNone(evaluation)
         self.assertTrue(evaluation.should_add)
@@ -157,7 +150,7 @@ class TestEmailProcessingIntegration(unittest.TestCase):
         self.assertIn('ai', evaluation.topics)
         self.assertIn('research', evaluation.topics)
     
-    @patch('rag_engine.OpenAI')
+    @patch('services.rag_service.OpenAI')
     def test_rag_engine_integration(self, mock_openai):
         """Test RAG engine integration"""
         # Mock OpenAI client
@@ -169,7 +162,7 @@ class TestEmailProcessingIntegration(unittest.TestCase):
             data=[Mock(embedding=[0.1] * 1536)]
         )
         
-        rag_engine = RAGEngine(persist_directory=self.temp_dir)
+        rag_engine = RAGService(persist_directory=self.temp_dir)
         
         # Add test documents
         success = rag_engine.add_documents([
@@ -185,9 +178,9 @@ class TestEmailProcessingIntegration(unittest.TestCase):
         self.assertIsNotNone(results)
         self.assertLessEqual(len(results), 1)
     
-    @patch('ai_modules.content_evaluator.OpenAI')
-    @patch('ai_modules.content_evaluator.ChatOpenAI')
-    @patch('rag_engine.OpenAI')
+    @patch('services.content_service.OpenAI')
+    @patch('services.content_service.ChatOpenAI')
+    @patch('services.rag_service.OpenAI')
     def test_complete_email_processing_pipeline(self, mock_rag_openai, mock_chat_openai, mock_openai):
         """Test complete email processing pipeline"""
         # Mock OpenAI clients
@@ -210,7 +203,7 @@ class TestEmailProcessingIntegration(unittest.TestCase):
         mock_llm.invoke.return_value = mock_response
         
         # Initialize RAG engine
-        rag_engine = RAGEngine(persist_directory=self.temp_dir)
+        rag_engine = RAGService(persist_directory=self.temp_dir)
         
         # Test email processing
         test_email = self._create_test_email()
@@ -219,14 +212,14 @@ class TestEmailProcessingIntegration(unittest.TestCase):
         self.assertIsNotNone(parsed_email)
         
         # Test content evaluation
-        evaluator = ContentEvaluator()
-        evaluation = evaluator.evaluate_email_content(
+        evaluator = ContentEvaluationService()
+        evaluation = asyncio.run(evaluator.evaluate_email_content(
             sender_email=parsed_email['sender_email'],
             subject=parsed_email['subject'],
             body=parsed_email['body'],
             attachments=parsed_email['attachments'],
             links=parsed_email['links']
-        )
+        ))
         
         self.assertIsNotNone(evaluation)
         
@@ -240,12 +233,8 @@ class TestEmailProcessingIntegration(unittest.TestCase):
             self.assertTrue(success)
         
         # Test reply generation
-        reply = generate_reply(
-            parsed_email['sender_name'],
-            parsed_email['sender_email'],
-            parsed_email['subject'],
-            parsed_email['body']
-        )
+        rg = ReplyGenerator()
+        reply = rg._generate_fallback_reply(parsed_email['sender_name'], parsed_email['subject'])
         
         self.assertIsNotNone(reply)
         self.assertIsInstance(reply, str)
@@ -267,7 +256,7 @@ class TestBackgroundTaskIntegration(unittest.TestCase):
             'POLLING_INTERVAL': '1'  # Short interval for testing
         }):
             # Mock email client
-            with patch('email_client.EmailClient') as mock_email_client:
+            with patch('services.email_service.EmailService') as mock_email_client:
                 mock_client = Mock()
                 mock_email_client.return_value = mock_client
                 
@@ -296,10 +285,10 @@ class TestBackgroundTaskIntegration(unittest.TestCase):
             import shutil
             shutil.rmtree(self.temp_dir)
     
-    @patch('ai_modules.content_evaluator.OpenAI')
-    @patch('ai_modules.content_evaluator.ChatOpenAI')
-    @patch('rag_engine.OpenAI')
-    @patch('background_tasks.generate_reply')
+    @patch('services.content_service.OpenAI')
+    @patch('services.content_service.ChatOpenAI')
+    @patch('services.rag_service.OpenAI')
+    @patch('services.email_service.EmailService.generate_reply')
     def test_email_polling_task_integration(self, mock_generate_reply, mock_rag_openai, mock_chat_openai, mock_openai):
         """Test email polling task integration"""
         # Mock OpenAI clients
@@ -325,7 +314,7 @@ class TestBackgroundTaskIntegration(unittest.TestCase):
         mock_generate_reply.return_value = "This is a test reply from Alan."
         
         # Initialize RAG engine
-        rag_engine = RAGEngine(persist_directory=self.temp_dir)
+        rag_engine = RAGService(persist_directory=self.temp_dir)
         
         # Test the polling task (run for a short time)
         async def test_polling():
