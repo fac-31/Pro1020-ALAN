@@ -172,6 +172,36 @@ class AIService:
         except Exception as e:
             logger.error(f"Error generating welcome email: {e}")
             raise create_openai_error(f"Failed to generate welcome email: {str(e)}")
+
+    def generate_tags(self, text_content: str) -> List[str]:
+        """
+        Analyzes text and returns a list of relevant tags.
+        """
+        MAX_CHARS = 100
+        text_to_send = text_content[:MAX_CHARS]
+
+        try:
+            system_prompt = (
+                "You are an expert at analyzing text and extracting relevant tags. "
+                "Respond ONLY with a comma-separated list of 1–5 tags."
+)
+            human_message = f"Generate tags for the following text:\n\n{text_to_send}"
+
+            messages = [
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=human_message)
+            ]
+
+            # Excluded the metadata for langsmith (BUG)
+            response = self.llm.invoke(messages)
+
+            
+            tags = [tag.strip() for tag in response.content.split(',')]
+            return tags
+
+        except Exception as e:
+            logger.error(f"Error generating tags: {e}")
+            raise create_openai_error(f"Failed to generate tags: {str(e)}")
     
     def _extract_query_from_email(self, subject: str, body: str) -> str:
         """Extract search query from email content"""

@@ -11,6 +11,7 @@ from email_modules.email_client_init import initialize_email_client, shutdown_em
 from routers.subscribers import router as subscribers_router
 from routers.rag import router as rag_router
 from routers.content import router as content_router
+from routers.ai import router as ai_router
 from services.rag_service import RAGService
 from services.digest_service import DailyDigestService
 from services.ai_service import AIService
@@ -107,6 +108,7 @@ async def shutdown_event():
 app.include_router(subscribers_router)
 app.include_router(rag_router)
 app.include_router(content_router)
+app.include_router(ai_router)
 
 @app.get("/")
 def home():

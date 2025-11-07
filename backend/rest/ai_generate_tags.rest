@@ -1,0 +1,7 @@
+POST http://127.0.0.1:8000/ai/generate-tags
+Content-Type: application/json
+
+{
+  "text": "Python is a versatile programming language used for web development, data science, AI, and more. FastAPI is a modern web framework for building APIs with Python."
+}
+
