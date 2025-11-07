@@ -12,6 +12,7 @@ from routers.subscribers import router as subscribers_router
 from routers.rag import router as rag_router
 from routers.content import router as content_router
 from routers.ai import router as ai_router
+from routers.fetch import router as fetch_router
 from services.rag_service import RAGService
 from services.digest_service import DailyDigestService
 from services.ai_service import AIService
@@ -109,6 +110,7 @@ app.include_router(subscribers_router)
 app.include_router(rag_router)
 app.include_router(content_router)
 app.include_router(ai_router)
+app.include_router(fetch_router)
 
 @app.get("/")
 def home():
