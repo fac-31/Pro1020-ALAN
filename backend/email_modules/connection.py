@@ -18,21 +18,16 @@ class EmailConnection:
     def get_imap_connection(self) -> Optional[imaplib.IMAP4_SSL]:
         """Get IMAP connection to Gmail"""
         try:
-            logger.info("Connecting to Gmail IMAP server...")
+            # Reduced logging - only log errors, not every connection
             mail = imaplib.IMAP4_SSL('imap.gmail.com')
-            logger.info("IMAP connection established")
             
             # Force UTF-8 encoding for Gmail IMAP
             mail._encoding = "utf-8"
-            logger.info("UTF-8 encoding set for IMAP connection")
             
-            logger.info("Logging in as %s", clean_str(self.gmail_user))
             mail.login(self.gmail_user, self.gmail_app_pass)
-            logger.info("Successfully logged in to Gmail")
             
             # Re-enforce UTF-8 after login (Gmail may reset encoding)
             mail._encoding = "utf-8"
-            logger.info("UTF-8 encoding re-enforced after login")
             
             return mail
         except Exception as e:
@@ -54,12 +49,11 @@ class EmailConnection:
         """Close IMAP connection safely"""
         if mail:
             try:
-                logger.info("Closing IMAP connection...")
                 # Only close if a mailbox is selected
                 if hasattr(mail, 'state') and mail.state == "SELECTED":
                     mail.close()
                 mail.logout()
-                logger.info("IMAP connection closed")
+                # Reduced logging - only log errors
             except Exception as e:
                 logger.error("Error closing IMAP connection: %s", clean_str(str(e)))
     
@@ -75,26 +69,21 @@ class EmailConnection:
     def search_unread_emails(self, mail: imaplib.IMAP4_SSL) -> List[bytes]:
         """Search for unread emails"""
         try:
-            logger.info("Selecting inbox...")
+            # Reduced logging - only log errors
             try:
                 mail.select('inbox')
-                logger.info("Inbox selected")
             except UnicodeDecodeError as e:
                 logger.warning(f"Unicode error selecting inbox: {e}")
-                logger.info("Attempting to continue despite Unicode error...")
             
             # Search for unread emails with Unicode-safe approach
-            logger.info("Searching for unread emails...")
             try:
                 # Use a more robust search approach
                 status, messages = mail.search(None, 'UNSEEN')
-                logger.info("Search status: %s", clean_str(str(status)))
             except UnicodeDecodeError as e:
                 safe_error = unicodedata.normalize("NFKC", str(e)).replace("\xa0", " ")
                 logger.warning("Unicode error in search, trying alternative approach: %s", safe_error)
                 # Try with a different search method
                 status, messages = mail.search(None, b'UNSEEN')
-                logger.info("Alternative search status: %s", clean_str(str(status)))
             except Exception as e:
                 safe_error = unicodedata.normalize("NFKC", str(e)).replace("\xa0", " ")
                 logger.error("Search failed: %s", safe_error)
@@ -103,7 +92,9 @@ class EmailConnection:
             if status == 'OK' and messages[0]:
                 try:
                     email_ids = messages[0].split()
-                    logger.info("Found %d unread emails", len(email_ids))
+                    # Only log if emails found (reduces log spam)
+                    if len(email_ids) > 0:
+                        logger.info("Found %d unread emails", len(email_ids))
                     return email_ids
                 except UnicodeDecodeError as e:
                     safe_error = unicodedata.normalize("NFKC", str(e)).replace("\xa0", " ")

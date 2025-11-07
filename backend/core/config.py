@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     langsmith_project_evaluation: Optional[str] = Field(default=None, description="LangSmith evaluation project")
     
     # Email Processing
-    polling_interval: int = Field(default=300, description="Email polling interval in seconds")
+    polling_interval: int = Field(default=900, description="Email polling interval in seconds (default: 15 minutes to reduce connection overhead)")
     max_emails_per_batch: int = Field(default=10, description="Maximum emails to process per batch")
     max_email_size_mb: float = Field(default=5.0, description="Maximum email size to process in MB (skip larger emails)")
     extract_attachments: bool = Field(default=True, description="Extract attachment content (disable for large emails)")
