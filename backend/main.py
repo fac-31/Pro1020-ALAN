@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from contextlib import asynccontextmanager
 from datetime import datetime
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,29 +25,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# --- FastAPI App Setup ---
-app = FastAPI(
-    title=settings.app_name,
-    version=settings.app_version,
-    debug=settings.debug
-)
-
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_credentials=settings.cors_credentials,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize all services with enhanced error handling - non-blocking"""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan context manager for FastAPI - ensures server binds immediately"""
+    # Startup: Initialize services in background
     logger.info("Server starting - initializing services in background...")
     
-    # Start initialization in background task IMMEDIATELY (don't await)
-    # This allows the server to bind to the port right away
     async def _initialize_services():
         try:
             # Run NLTK setup in thread pool to avoid blocking
@@ -91,15 +75,16 @@ async def startup_event():
             # Don't raise - allow server to start even if some services fail
             # Services will be None and endpoints can handle gracefully
     
-    # Start initialization in background - server will bind immediately
+    # Start initialization in background - DON'T await, server binds immediately
     asyncio.create_task(_initialize_services())
     
-    # Return immediately - don't wait for services to initialize
     logger.info("Startup event completed - server binding to port...")
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Gracefully shut down all services"""
+    
+    # Yield control - server is now running and bound to port
+    yield
+    
+    # Shutdown: Clean up resources
+    logger.info("Shutting down services...")
     try:
         # Shutdown email client
         await shutdown_email_client(app)
@@ -116,6 +101,23 @@ async def shutdown_event():
         
     except Exception as e:
         logger.error(f"Error during shutdown: {e}")
+
+# --- FastAPI App Setup ---
+app = FastAPI(
+    title=settings.app_name,
+    version=settings.app_version,
+    debug=settings.debug,
+    lifespan=lifespan  # Use lifespan instead of startup/shutdown events
+)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=settings.cors_credentials,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # --- API Endpoints ---
 
