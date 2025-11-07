@@ -10,6 +10,7 @@ from core.exceptions import convert_to_http_exception
 from email_modules.email_client_init import initialize_email_client, shutdown_email_client
 from routers.subscribers import router as subscribers_router
 from routers.rag import router as rag_router
+from routers.content import router as content_router
 from services.rag_service import RAGService
 from services.digest_service import DailyDigestService
 from services.ai_service import AIService
@@ -105,6 +106,7 @@ async def shutdown_event():
 # Include routers
 app.include_router(subscribers_router)
 app.include_router(rag_router)
+app.include_router(content_router)
 
 @app.get("/")
 def home():
