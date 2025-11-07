@@ -26,14 +26,27 @@ async def email_polling_task(email_client: EmailClient, rag_service: RAGService 
         logger.error(f"Failed to initialize content evaluation service: {e}", exc_info=True)
         return
     
-    polling_interval = int(os.getenv('POLLING_INTERVAL', 300))
-    logger.info(f"Polling interval: {polling_interval} seconds")
+    # Use settings from config, fallback to env var, then default to 15 minutes
+    from core.config import settings
+    polling_interval = int(os.getenv('POLLING_INTERVAL', settings.polling_interval))
+    logger.info(f"Polling interval: {polling_interval} seconds ({polling_interval/60:.1f} minutes)")
+    
+    check_count = 0  # Track check count for reduced logging
     
     while True:
         try:
-            logger.info("Checking for new emails...")
+            check_count += 1
+            # Reduce logging frequency - only log every 10th check to avoid log spam
+            should_log = check_count == 1 or check_count % 10 == 0
+            
+            if should_log:
+                logger.info(f"Checking for new emails... (check #{check_count})")
+            
             unread_emails = await asyncio.to_thread(email_client.check_unread_emails)
-            logger.info(f"Found {len(unread_emails)} unread emails")
+            
+            # Always log if emails found, or every 10th check
+            if len(unread_emails) > 0 or should_log:
+                logger.info(f"Found {len(unread_emails)} unread emails")
             
             for email in unread_emails:
                 try:
