@@ -115,11 +115,12 @@ class DailyDigestService:
             
             for interest in user_interests:
                 try:
-                    # Search for content related to this interest
-                    results = self.rag_service.search_documents(interest, n_results=2)
+                    # Search for content related to this interest using RAG service
+                    context = self.rag_service.get_context_for_query(interest, user_interests=[interest])
                     
-                    for result in results:
-                        content = result['content'][:300]  # Limit content length
+                    if context and context != "No relevant information found in the knowledge base.":
+                        # Limit content length
+                        content = context[:500] if len(context) > 500 else context
                         digest_content.append(f"📚 {interest.title()}: {content}")
                         
                 except Exception as e:
@@ -331,6 +332,60 @@ class DailyDigestService:
                 error_code="SEND_ALL_DIGESTS_FAILED"
             )
     
+    def add_user(self, email: str, interests: List[str], name: str = "") -> bool:
+        """Add a new user to the daily digest list"""
+        try:
+            users = self.load_users()
+            
+            # Check if user already exists
+            for user in users:
+                if user.get('email') == email:
+                    # Update interests
+                    user['interests'] = interests
+                    user['name'] = name
+                    user['is_active'] = True
+                    self.save_users(users)
+                    logger.info(f"Updated user {email} in daily digest list")
+                    return True
+            
+            # Add new user
+            new_user = {
+                'email': email,
+                'interests': interests,
+                'name': name,
+                'is_active': True,
+                'added_at': datetime.now().isoformat()
+            }
+            
+            users.append(new_user)
+            self.save_users(users)
+            logger.info(f"Added user {email} to daily digest list")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error adding user {email}: {e}")
+            return False
+    
+    def remove_user(self, email: str) -> bool:
+        """Remove a user from the daily digest list"""
+        try:
+            users = self.load_users()
+            original_count = len(users)
+            
+            users = [user for user in users if user.get('email') != email]
+            
+            if len(users) < original_count:
+                self.save_users(users)
+                logger.info(f"Removed user {email} from daily digest list")
+                return True
+            else:
+                logger.warning(f"User {email} not found in daily digest list")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error removing user {email}: {e}")
+            return False
+    
     def get_service_status(self) -> Dict[str, any]:
         """Get daily digest service status"""
         try:
@@ -350,4 +405,24 @@ class DailyDigestService:
                 "status": "unhealthy",
                 "error": str(e),
                 "users_file": self.users_file
+            }
+    
+    def get_digest_stats(self) -> Dict:
+        """Get statistics about daily digest users"""
+        try:
+            users = self.load_users()
+            active_users = [user for user in users if user.get('is_active', True)]
+            
+            return {
+                "total_users": len(users),
+                "active_users": len(active_users),
+                "digest_hour": settings.digest_hour,
+                "digest_minute": settings.digest_minute
+            }
+        except Exception as e:
+            logger.error(f"Error getting digest stats: {e}")
+            return {
+                "error": str(e),
+                "total_users": 0,
+                "active_users": 0
             }
