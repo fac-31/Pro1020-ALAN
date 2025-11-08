@@ -111,33 +111,50 @@ class DailyDigestService:
                 )
             
             # Get relevant content from RAG based on user interests
-            digest_content = []
+            # Use a combined query for better results
+            combined_query = " ".join(user_interests)
+            all_content = []
             
-            for interest in user_interests:
-                try:
-                    # Search for content related to this interest using RAG service
-                    context = self.rag_service.get_context_for_query(interest, user_interests=[interest])
-                    
-                    if context and context != "No relevant information found in the knowledge base.":
-                        # Limit content length
-                        content = context[:500] if len(context) > 500 else context
-                        digest_content.append(f"📚 {interest.title()}: {content}")
+            try:
+                # Get content using combined query for better diversity
+                context = self.rag_service.get_context_for_query(combined_query, user_interests=user_interests)
+                
+                if context and context != "No relevant information found in the knowledge base.":
+                    # Clean up the context format (remove "Context 1:", "Context 2:" prefixes)
+                    cleaned_context = self._clean_rag_context(context)
+                    all_content.append(cleaned_context)
+                
+                # Also try individual interests to get more diverse content
+                for interest in user_interests[:3]:  # Limit to first 3 interests
+                    try:
+                        individual_context = self.rag_service.get_context_for_query(
+                            interest, 
+                            user_interests=[interest]
+                        )
+                        if (individual_context and 
+                            individual_context != "No relevant information found in the knowledge base." and
+                            individual_context not in all_content):  # Avoid duplicates
+                            cleaned = self._clean_rag_context(individual_context)
+                            if cleaned and cleaned not in all_content:
+                                all_content.append(cleaned)
+                    except Exception as e:
+                        logger.debug(f"Could not get content for {interest}: {e}")
+                        continue
                         
-                except Exception as e:
-                    logger.warning(f"Failed to get content for interest '{interest}': {e}")
-                    continue
+            except Exception as e:
+                logger.warning(f"Failed to get RAG content: {e}")
             
-            # Generate AI-powered digest summary
-            if digest_content:
-                content_text = "\n\n".join(digest_content)
+            # If we have content, generate AI digest
+            if all_content:
+                content_text = "\n\n---\n\n".join(all_content[:5])  # Limit to top 5 pieces
                 
                 try:
                     digest_summary = await self._generate_digest_summary(content_text, user_interests)
                     return digest_summary
                 except Exception as e:
-                    logger.error(f"Failed to generate AI digest summary: {e}")
-                    # Fallback to basic digest
-                    return self._create_fallback_digest(content_text, user_interests)
+                    logger.error(f"Failed to generate AI digest summary: {e}", exc_info=True)
+                    # Fallback to improved basic digest
+                    return self._create_improved_digest(content_text, user_interests)
             else:
                 return self._create_empty_digest(user_interests)
                 
@@ -189,20 +206,71 @@ class DailyDigestService:
                 error_code="AI_DIGEST_GENERATION_FAILED"
             )
     
-    def _create_fallback_digest(self, content: str, user_interests: List[str]) -> str:
-        """Create a fallback digest when AI generation fails"""
-        return f"""
-        Good morning! Here's your personalized daily digest from Alan:
+    def _clean_rag_context(self, context: str) -> str:
+        """Clean up RAG context by removing format prefixes and improving readability"""
+        if not context:
+            return ""
         
-        Based on your interests in {', '.join(user_interests)}, here's what I found:
+        # Remove "Context 1:", "Context 2:" prefixes
+        lines = context.split('\n')
+        cleaned_lines = []
+        for line in lines:
+            # Remove context number prefixes
+            if line.strip().startswith('Context '):
+                # Extract content after the colon
+                parts = line.split(':', 1)
+                if len(parts) > 1:
+                    cleaned_lines.append(parts[1].strip())
+                continue
+            cleaned_lines.append(line.strip())
         
-        {content}
+        # Join and clean up multiple spaces/newlines
+        cleaned = '\n'.join(cleaned_lines)
+        # Remove excessive whitespace
+        cleaned = '\n\n'.join([line.strip() for line in cleaned.split('\n') if line.strip()])
         
-        Have a great day!
+        return cleaned
+    
+    async def _generate_digest_summary(self, content: str, user_interests: List[str]) -> str:
+        """Generate AI-powered digest summary using dedicated AI service method"""
+        try:
+            # Use AI service's dedicated digest generation method
+            digest = await asyncio.to_thread(
+                self.ai_service.generate_daily_digest,
+                content=content,
+                user_interests=user_interests
+            )
+            
+            return digest
+            
+        except Exception as e:
+            logger.error(f"Failed to generate AI digest summary: {e}", exc_info=True)
+            raise DailyDigestError(
+                message=f"AI digest generation failed: {str(e)}",
+                error_code="AI_DIGEST_GENERATION_FAILED"
+            )
+    
+    def _create_improved_digest(self, content: str, user_interests: List[str]) -> str:
+        """Create an improved fallback digest when AI generation fails"""
+        # Clean up the content
+        cleaned_content = self._clean_rag_context(content)
         
-        Best regards,
-        Alan
-        """
+        # Limit content length
+        if len(cleaned_content) > 1000:
+            cleaned_content = cleaned_content[:1000] + "..."
+        
+        return f"""Good morning! ☕
+
+Here's your personalized daily digest from Alan, tailored to your interests in {', '.join(user_interests)}:
+
+{cleaned_content}
+
+I'm continuously learning and adding new content to my knowledge base. As I discover more relevant information about your interests, I'll make sure to include it in future digests!
+
+Have a great day!
+
+Best regards,
+Alan"""
     
     def _create_empty_digest(self, user_interests: List[str]) -> str:
         """Create digest when no content is available"""

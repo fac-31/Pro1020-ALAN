@@ -181,6 +181,69 @@ class AIService:
             logger.error(f"Error generating welcome email: {e}")
             raise create_openai_error(f"Failed to generate welcome email: {str(e)}")
     
+    def generate_daily_digest(self, content: str, user_interests: List[str]) -> str:
+        """
+        Generate a daily digest from RAG content with a specialized prompt
+        
+        Args:
+            content: Content from RAG knowledge base
+            user_interests: List of user's interests
+            
+        Returns:
+            Generated digest text
+        """
+        try:
+            # Create specialized system prompt for digest generation
+            system_prompt = """You are Alan, an AI assistant creating a personalized daily digest newsletter.
+
+Your task is to create an engaging, informative daily digest that:
+1. Summarizes the most interesting and relevant information from the provided content
+2. Highlights key insights, trends, or updates related to the user's interests
+3. Uses a warm, conversational tone (like a friend sharing interesting news)
+4. Organizes content into clear sections or bullet points when appropriate
+5. Adds context and explains why the information matters
+6. Keeps it concise (2-3 paragraphs or a few bullet points)
+7. Ends with a friendly sign-off
+
+IMPORTANT:
+- If the content is generic, repetitive, or limited, acknowledge this gracefully
+- Focus on unique insights, not repeating the same information multiple times
+- Make it feel personal and valuable
+- Don't just list content - synthesize and explain it
+- If content is about Alan itself or generic, provide encouragement about future updates
+- Write in a natural, engaging newsletter style"""
+
+            human_message = f"""Create a personalized daily digest for someone interested in: {', '.join(user_interests)}
+
+Here's the content I found in my knowledge base:
+
+{content}
+
+Please create an engaging daily digest that synthesizes this information and makes it interesting and valuable for the reader. If the content is limited, generic, or repetitive, acknowledge that gracefully and provide encouragement about future updates."""
+
+            # Prepare messages for LLM
+            messages = [
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=human_message)
+            ]
+            
+            # Generate response
+            logger.info("Generating daily digest with AI...")
+            if self.tracer:
+                # Don't pass any kwargs when tracer is enabled to avoid metadata conflicts
+                response = self.llm.invoke(messages)
+            else:
+                # When tracer is disabled, we can safely use tags
+                response = self.llm.invoke(messages, tags=["daily_digest", "rag_powered"])
+            
+            digest_content = response.content.strip()
+            logger.info(f"Successfully generated daily digest ({len(digest_content)} characters)")
+            return digest_content
+            
+        except Exception as e:
+            logger.error(f"Error generating daily digest: {e}", exc_info=True)
+            raise create_openai_error(f"Failed to generate daily digest: {str(e)}")
+    
     def _extract_query_from_email(self, subject: str, body: str) -> str:
         """Extract search query from email content"""
         # Combine subject and body for better context
