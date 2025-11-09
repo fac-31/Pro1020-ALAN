@@ -295,7 +295,9 @@ class AIService:
                 "error": str(e),
             }
 
-    async def generate_text(self, system_prompt: str, human_message: str, response_format: str = None) -> str:
+    async def generate_text(
+        self, system_prompt: str, human_message: str, response_format: str = None
+    ) -> str:
         """Generate text using the LLM."""
         try:
             messages = [

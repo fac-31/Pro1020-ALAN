@@ -463,3 +463,37 @@ class RAGService:
                 "embedding_model": settings.rag_embedding_model,
                 "persist_directory": self.persist_directory,
             }
+
+    def get_all_articles(self) -> List[Dict[str, Any]]:
+        """
+        Reconstructs and returns all articles from the stored chunks.
+        """
+        if not self.metadata:
+            return []
+
+        articles = {}
+        for i, meta in enumerate(self.metadata):
+            article_id = meta.get("article_id")
+            if not article_id:
+                continue
+
+            if article_id not in articles:
+                articles[article_id] = {
+                    "content": "",
+                    "metadata": meta,
+                    "chunks": []
+                }
+            
+            articles[article_id]["chunks"].append({
+                "content": self.documents[i],
+                "chunk_id": meta.get("chunk_id", 0)
+            })
+
+        # Combine chunks into full content
+        for article_id, article in articles.items():
+            # Sort chunks by chunk_id
+            sorted_chunks = sorted(article["chunks"], key=lambda x: x["chunk_id"])
+            article["content"] = "\n\n".join([c["content"] for c in sorted_chunks])
+            del article["chunks"] # remove temporary chunk list
+
+        return list(articles.values())

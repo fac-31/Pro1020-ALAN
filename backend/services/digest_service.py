@@ -100,10 +100,14 @@ class DailyDigestService:
                 details={"file": self.users_file, "user_count": len(users)},
             )
 
+
     async def generate_agnostic_daily_digest(self) -> dict:
         """
         Generate a clean, interest-agnostic daily digest in a structured format
         suitable for frontend rendering.
+
+        This version uses all available articles, prioritizing those with more content.
+
         Returns:
             dict: {
                 "intro": str,
@@ -112,89 +116,92 @@ class DailyDigestService:
             }
         """
         try:
-            results = self.rag_service.search_documents(query=".", n_results=10)
+            # Fetch all articles from the RAG service
+            all_articles = self.rag_service.get_all_articles()
 
-            if not results:
+            if not all_articles:
                 return {
                     "intro": "Good morning! ☕\n\nI don’t have enough new content to generate a full digest today.",
                     "articles": [],
                     "closing": "Stay tuned for more updates!\n\nBest regards,\nAlan",
                 }
 
-            # Prepare content for LLM: full text or metadata
-            # (You might send title + snippet + url for each)
-            docs_for_llm = []
-            seen = set()
-            for r in results:
-                article_id = r["metadata"].get("article_id")
-                if article_id and article_id not in seen:
-                    seen.add(article_id)
-                    docs_for_llm.append(
-                        {
-                            "title": r["metadata"].get("title", "Untitled"),
-                            "url": r["metadata"].get("url", ""),
-                            "content": r["content"],
-                        }
-                    )
-                if len(docs_for_llm) >= 10:
-                    break
+            # Sort articles by content length (descending)
+            sorted_articles = sorted(all_articles, key=lambda x: len(x.get("content", "")), reverse=True)
 
-            # Create the human message
-            human_message = (
-                "Here are articles to summarise for today's digest:\n\n"
-                + "\n\n".join(
-                    [
-                        f"Title: {d['title']}\nURL: {d['url']}\nContent: {d['content']}"
-                        for d in docs_for_llm
-                    ]
+            # Take the top 20 articles to avoid context window issues
+            top_articles = sorted_articles[:20]
+
+            # Prepare content for LLM
+            docs_for_llm = []
+            for article in top_articles:
+                content_snippet = (
+                    article["content"][:300].strip() or "No additional content available."
                 )
-                + "\n\nGenerate the structured digest according to the schema."
+                docs_for_llm.append(
+                    {
+                        "index": len(docs_for_llm) + 1,
+                        "title": article["metadata"].get("title", "Untitled"),
+                        "url": article["metadata"].get("url"),
+                        "content": content_snippet,
+                    }
+                )
+
+            # Build human message with explicit instructions
+            article_texts = []
+            for d in docs_for_llm:
+                article_texts.append(
+                    f"Article {d['index']} [{d['index']} of {len(docs_for_llm)}]:\n"
+                    f"Title: {d['title']}\n"
+                    f"URL: {d['url']}\n"
+                    f"Content: {d['content']}\n"
+                )
+
+            human_message = (
+                "Here are articles to summarize for today's digest. Include ALL articles listed below.\n"
+                "Each summary must correspond exactly to the given title and URL.\n"
+                "Do not include topics not provided.\n\n"
+                + "\n".join(article_texts)
+                + "\nGenerate the structured JSON digest with a short 1-2 sentence summary for each article."
             )
 
             system_prompt = """
-You are an AI assistant that generates a daily digest in a structured JSON format.
+                        You are an AI assistant that generates a daily digest in strict JSON format.
+                        Your output MUST be a single JSON object like this:
 
-Your output MUST be a single JSON object with the following schema:
-{
-  "intro": "A 2-3 sentence introduction to the digest.",
-  "articles": [
-    {
-      "title": "Article Title",
-      "url": "Article URL",
-      "summary": "A short summary of the article."
-    }
-  ],
-  "closing": "A friendly closing message."
-}
+                        {
+                        "intro": "A 2-3 sentence introduction to the digest.",
+                        "articles": [
+                            {"title": "Article Title", "url": "Article URL", "summary": "1-2 sentence summary"}
+                        ],
+                        "closing": "Friendly closing message"
+                        }
 
-Do not include any text outside of the JSON object.
-"""
+                        Do not include any text outside the JSON object. Include ALL articles provided.
+                        """
 
-            # Call your AI service
+            # Call AI service
             response = await self.ai_service.generate_text(
                 system_prompt=system_prompt,
                 human_message=human_message,
-                response_format="json",  # or use schema parameter if available
+                response_format="json",
             )
 
             # Parse JSON
             digest_obj = json.loads(response)
 
-            # Validate / fallback if needed
+            # Validate output
             if (
                 "intro" not in digest_obj
                 or "articles" not in digest_obj
                 or "closing" not in digest_obj
             ):
-                # fallback
-                raise ValueError("Invalid digest format")
+                raise ValueError("Invalid digest format returned from AI")
 
             return digest_obj
 
         except Exception as e:
-            logger.error(
-                f"Failed to generate structured daily digest: {e}", exc_info=True
-            )
+            logger.error(f"Failed to generate structured daily digest: {e}", exc_info=True)
             return {
                 "intro": "Good morning! ☕\n\nI ran into issues generating today’s digest, but I will have updates soon.",
                 "articles": [],

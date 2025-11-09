@@ -1,7 +1,7 @@
 import os
 import json
 import logging
-from services.content import fetch_page_data
+from services.content.fetch_page_data import fetch_page_data
 from fastapi import APIRouter, HTTPException, Depends, Request, UploadFile, File
 from pydantic import BaseModel
 from typing import List, Dict, Optional
@@ -28,11 +28,11 @@ class DocumentUpload(BaseModel):
 
 
 class MinimalNewsArticle(BaseModel):
-    title: str
     url: str
-    source: Optional[str] = None 
+    title: Optional[str] = None
+    source: Optional[str] = None
 
-    
+
 class NewsArticle(BaseModel):
     title: str
     content: str
@@ -50,6 +50,11 @@ class UserDigest(BaseModel):
     email: str
     interests: List[str]
     name: str = ""
+
+
+class SmartUploadResponse(BaseModel):
+    success: List["NewsArticle"] = []
+    failed: List[dict] = []
 
 
 # --- Dependency Injection ---
@@ -137,41 +142,58 @@ async def add_news_article(
             status_code=500, detail=f"Error adding news article: {str(e)}"
         )
 
-@router.post("/news/smart_upload", tags=["News"], summary="Smart Batch Upload News Articles")
-async def smart_upload_news(articles: List[MinimalNewsArticle]):
+
+@router.post("/news/smart_upload", response_model=SmartUploadResponse, tags=["News"])
+async def smart_upload_news(
+    request: Request,
+    articles: List[MinimalNewsArticle],
+    rag_engine: RAGService = Depends(get_rag_engine),
+):
+    """
+    Accepts a list of news articles, fetches content via the content extractor,
+    generates tags using AI service, uploads them, and returns success/failure for each.
+    """
     results = {"success": [], "failed": []}
+    ai_service = request.app.state.ai_service
 
     for article in articles:
         try:
-            # 1. Extract content
             content_result = fetch_page_data(article.url)
+
             if not content_result.get("success", False):
-                raise ValueError(content_result.get("error", "Failed to extract content"))
+                raise ValueError(
+                    content_result.get("error", "Failed to extract content")
+                )
 
             content = content_result.get("content", "")
-            title_from_page = content_result.get("title", article.title)
+            title_to_use = article.title or content_result.get("title") or "Untitled"
+            tags = ai_service.generate_tags(content)
 
-            # 2. Generate tags
-            tags_resp = await TaggingService.generate_tags(content)
-            tags = tags_resp["tags"]
+            news_article = NewsArticle(
+                title=title_to_use, content=content, url=str(article.url), topics=tags
+            )
 
-            # 3. Upload article
-            saved_article = await ArticleUploadService.upload({
-                "title": article.title,
-                "url": article.url,
-                "source": article.source,
-                "content": content,
-                "topics": tags
-            })
+            upload_success = rag_engine.add_news_article(
+                title=news_article.title,
+                content=news_article.content,
+                url=news_article.url,
+                topics=news_article.topics,
+            )
 
-            results["success"].append(saved_article)
+            if not upload_success:
+                raise ValueError("Failed to upload article to RAG engine")
+
+            results["success"].append(news_article)
 
         except Exception as e:
-            results["failed"].append({
-                "title": article.title,
-                "url": article.url,
-                "error": str(e)
-            })
+            # Capture per-article failures
+            results["failed"].append(
+                {
+                    "title": article.title or "Unknown",
+                    "url": str(article.url),
+                    "error": str(e),
+                }
+            )
 
     return results
 
