@@ -30,7 +30,7 @@ class RAGService:
             if not self.openai_api_key:
                 raise RAGServiceError(
                     message="OpenAI API key not configured",
-                    error_code="OPENAI_API_KEY_MISSING"
+                    error_code="OPENAI_API_KEY_MISSING",
                 )
 
             self.client = OpenAI(api_key=self.openai_api_key)
@@ -44,7 +44,9 @@ class RAGService:
             self.metadata: List[Dict[str, Any]] = []
 
             self._load_data()
-            logger.info(f"RAG Service initialized with FAISS at {self.persist_directory}")
+            logger.info(
+                f"RAG Service initialized with FAISS at {self.persist_directory}"
+            )
 
         except RAGServiceError:
             raise
@@ -52,7 +54,7 @@ class RAGService:
             raise RAGServiceError(
                 message=f"Failed to initialize RAG service: {str(e)}",
                 error_code="RAG_SERVICE_INIT_FAILED",
-                details={"original_error": str(e)}
+                details={"original_error": str(e)},
             )
 
     # -----------------------------
@@ -62,8 +64,7 @@ class RAGService:
         """Get embedding and normalize"""
         try:
             response = self.client.embeddings.create(
-                model=settings.rag_embedding_model,
-                input=text
+                model=settings.rag_embedding_model, input=text
             )
             vec = np.array(response.data[0].embedding, dtype=np.float32)
             norm = np.linalg.norm(vec)
@@ -73,7 +74,7 @@ class RAGService:
             raise RAGServiceError(
                 message="Failed to generate embedding",
                 error_code="EMBEDDING_GENERATION_FAILED",
-                details={"text_length": len(text)}
+                details={"text_length": len(text)},
             )
 
     def _load_data(self):
@@ -126,8 +127,7 @@ class RAGService:
         except Exception as e:
             logger.error(f"Failed to save RAG data: {e}")
             raise RAGServiceError(
-                message="Failed to save index/metadata",
-                error_code="RAG_SAVE_FAILED"
+                message="Failed to save index/metadata", error_code="RAG_SAVE_FAILED"
             )
 
     # -----------------------------
@@ -161,7 +161,7 @@ class RAGService:
             added = 0
 
             for i in range(0, len(documents), batch_size):
-                batch = documents[i:i + batch_size]
+                batch = documents[i : i + batch_size]
                 embeddings = []
                 batch_docs = []
                 batch_meta = []
@@ -176,15 +176,17 @@ class RAGService:
 
                     batch_docs.append(content)
 
-                    batch_meta.append({
-                        "article_id": doc.get("article_id"),
-                        "chunk_id": doc.get("chunk_id"),
-                        "title": doc.get("title"),
-                        "topics": doc.get("topics"),
-                        "source": doc.get("source"),
-                        "url": doc.get("url"),
-                        "added_at": datetime.now().isoformat()
-                    })
+                    batch_meta.append(
+                        {
+                            "article_id": doc.get("article_id"),
+                            "chunk_id": doc.get("chunk_id"),
+                            "title": doc.get("title"),
+                            "topics": doc.get("topics"),
+                            "source": doc.get("source"),
+                            "url": doc.get("url"),
+                            "added_at": datetime.now().isoformat(),
+                        }
+                    )
 
                 if embeddings:
                     arr = np.vstack(embeddings).astype(np.float32)
@@ -207,13 +209,15 @@ class RAGService:
             raise RAGServiceError(
                 message="Add documents failed",
                 error_code="ADD_DOCUMENTS_FAILED",
-                details={"error": str(e)}
+                details={"error": str(e)},
             )
 
     # -----------------------------
     # SEARCH
     # -----------------------------
-    def search_documents(self, query: str, n_results: int = None) -> List[Dict[str, Any]]:
+    def search_documents(
+        self, query: str, n_results: int = None
+    ) -> List[Dict[str, Any]]:
         try:
             if not query.strip():
                 raise RAGServiceError("Empty query", "EMPTY_SEARCH_QUERY")
@@ -224,16 +228,20 @@ class RAGService:
                 return []
 
             query_emb = self._get_embedding(query).reshape(1, -1)
-            scores, indices = self.index.search(query_emb, min(n_results, len(self.documents)))
+            scores, indices = self.index.search(
+                query_emb, min(n_results, len(self.documents))
+            )
 
             results = []
             for score, idx in zip(scores[0], indices[0]):
                 if idx < len(self.documents):
-                    results.append({
-                        "content": self.documents[idx],
-                        "score": float(score),
-                        "metadata": self.metadata[idx]
-                    })
+                    results.append(
+                        {
+                            "content": self.documents[idx],
+                            "score": float(score),
+                            "metadata": self.metadata[idx],
+                        }
+                    )
 
             return results
 
@@ -245,10 +253,7 @@ class RAGService:
     # CONTEXT RETRIEVAL
     # -----------------------------
     def get_context_for_query(
-        self,
-        query: str,
-        user_interests: List[str] = None,
-        n_results: int = None
+        self, query: str, user_interests: List[str] = None, n_results: int = None
     ) -> str:
         """
         Deterministic and stable context constructor for digest/summary engines.
@@ -262,9 +267,13 @@ class RAGService:
             # Optional filtering
             if user_interests:
                 results = [
-                    r for r in results
-                    if any(topic.lower() in [t.lower() for t in r["metadata"].get("topics", [])]
-                        for topic in user_interests)
+                    r
+                    for r in results
+                    if any(
+                        topic.lower()
+                        in [t.lower() for t in r["metadata"].get("topics", [])]
+                        for topic in user_interests
+                    )
                 ] or results  # fall back to original results
 
             # Group by article_id
@@ -279,7 +288,7 @@ class RAGService:
             sorted_groups = sorted(
                 grouped.items(),
                 key=lambda pair: max(c["score"] for c in pair[1]),
-                reverse=True
+                reverse=True,
             )
 
             # Format final output with strict deterministic template
@@ -295,7 +304,7 @@ class RAGService:
                     if len(section) > 500:
                         # find sentence end
                         end = section.rfind(".", 0, 500)
-                        section = section[:end + 1] if end != -1 else section[:500]
+                        section = section[: end + 1] if end != -1 else section[:500]
                     combined += section + "\n\n"
 
                 # strict formatting
@@ -316,11 +325,17 @@ class RAGService:
             logger.error(f"Context retrieval failed: {e}")
             return "Error retrieving context."
 
-
     # -----------------------------
     # NEWS ARTICLE INGESTION
     # -----------------------------
-    def add_news_article(self, title: str, content: str, topics: List[str], url: str, source: str = "news") -> bool:
+    def add_news_article(
+        self,
+        title: str,
+        content: str,
+        topics: List[str],
+        url: str,
+        source: str = "news",
+    ) -> bool:
         """
         Ingest a full article:
         - chunk into semantic chunks
@@ -335,7 +350,12 @@ class RAGService:
             full_text = f"{title}\n\n{content}"
             chunks = chunker.chunk_document(
                 full_text,
-                metadata={"title": title, "topics": topics, "source": source, "url": url}
+                metadata={
+                    "title": title,
+                    "topics": topics,
+                    "source": source,
+                    "url": url,
+                },
             )
 
             # Generate stable article_id
@@ -343,15 +363,17 @@ class RAGService:
 
             documents = []
             for idx, ch in enumerate(chunks):
-                documents.append({
-                    "content": ch["text"],
-                    "title": title,
-                    "topics": topics,
-                    "source": source,
-                    "url": url,
-                    "article_id": article_id,
-                    "chunk_id": idx,
-                })
+                documents.append(
+                    {
+                        "content": ch["text"],
+                        "title": title,
+                        "topics": topics,
+                        "source": source,
+                        "url": url,
+                        "article_id": article_id,
+                        "chunk_id": idx,
+                    }
+                )
 
             return self.add_documents(documents)
 
@@ -360,13 +382,15 @@ class RAGService:
             raise RAGServiceError(
                 message="Add news article failed",
                 error_code="ADD_NEWS_ARTICLE_FAILED",
-                details={"title": title}
+                details={"title": title},
             )
 
     # -----------------------------
     # USER DOCS
     # -----------------------------
-    def add_user_document(self, content: str, title: str = "", topics: List[str] = None) -> bool:
+    def add_user_document(
+        self, content: str, title: str = "", topics: List[str] = None
+    ) -> bool:
         try:
             article_id = str(abs(hash(content + title)))
 
@@ -386,7 +410,7 @@ class RAGService:
             logger.error(f"Add user doc failed: {e}")
             raise RAGServiceError(
                 message="Add user document failed",
-                error_code="ADD_USER_DOCUMENT_FAILED"
+                error_code="ADD_USER_DOCUMENT_FAILED",
             )
 
     # -----------------------------
@@ -402,13 +426,13 @@ class RAGService:
                 "total_documents": len(self.documents),
                 "unique_topics": len(topics),
                 "topics": list(topics),
-                "last_updated": self.metadata[-1]["added_at"] if self.metadata else None
+                "last_updated": (
+                    self.metadata[-1]["added_at"] if self.metadata else None
+                ),
             }
         except Exception as e:
             logger.error(f"Stats error: {e}")
-            return {
-                "error": str(e)
-            }
+            return {"error": str(e)}
 
     def clear_knowledge_base(self) -> bool:
         try:
@@ -430,12 +454,12 @@ class RAGService:
                 "unique_topics": stats.get("unique_topics", 0),
                 "embedding_model": settings.rag_embedding_model,
                 "persist_directory": self.persist_directory,
-                "index_size": self.index.ntotal
+                "index_size": self.index.ntotal,
             }
         except Exception as e:
             return {
                 "status": "unhealthy",
                 "error": str(e),
                 "embedding_model": settings.rag_embedding_model,
-                "persist_directory": self.persist_directory
+                "persist_directory": self.persist_directory,
             }

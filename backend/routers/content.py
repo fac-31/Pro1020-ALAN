@@ -4,6 +4,7 @@ from pydantic import BaseModel, HttpUrl
 
 router = APIRouter(prefix="/content", tags=["content"])
 
+
 class ExtractRequest(BaseModel):
     url: HttpUrl
 

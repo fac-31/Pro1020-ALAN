@@ -1,6 +1,7 @@
 import requests
 from typing import List, Dict
 
+
 def fetch_from_hackernews(limit: int = 20) -> List[Dict]:
     """
     Fetches top Hacker News stories.
@@ -14,11 +15,13 @@ def fetch_from_hackernews(limit: int = 20) -> List[Dict]:
         for sid in top_ids:
             story = requests.get(f"{BASE_URL}/item/{sid}.json", timeout=5).json()
             if story.get("type") == "story" and story.get("url"):
-                stories.append({
-                    "title": story["title"],
-                    "url": story["url"],
-                    "source": "Hacker News"
-                })
+                stories.append(
+                    {
+                        "title": story["title"],
+                        "url": story["url"],
+                        "source": "Hacker News",
+                    }
+                )
 
         return stories
 

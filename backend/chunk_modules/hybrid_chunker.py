@@ -19,20 +19,27 @@ class HybridChunker:
         semantic_threshold_percentile: float = 75.0,
         semantic_overlap: int = 1,
         semantic_unload_model_after_use: bool = False,
-        semantic_embedding_batch_size: int = 32
+        semantic_embedding_batch_size: int = 32,
     ):
         if use_semantic_merger is None:
             use_semantic_merger_str = os.environ.get("USE_SEMANTIC_MERGER", "True")
-            self.use_semantic_merger = use_semantic_merger_str.lower() in ('true', '1', 't')
+            self.use_semantic_merger = use_semantic_merger_str.lower() in (
+                "true",
+                "1",
+                "t",
+            )
         else:
             self.use_semantic_merger = use_semantic_merger
 
-        self.recursive = RecursiveSplitter(chunk_size=recursive_chunk_size, overlap=recursive_overlap)
+        self.recursive = RecursiveSplitter(
+            chunk_size=recursive_chunk_size, overlap=recursive_overlap
+        )
         self.normalizer = NormaliseSentence(sentence_overlap=sentence_overlap)
-        
+
         self.semantic = None
         if self.use_semantic_merger:
             from .semantic_merger import SemanticChunker
+
             self.semantic = SemanticChunker(
                 embedding_model_name=semantic_embedding_model_name,
                 model_size=semantic_model_size,
@@ -42,7 +49,7 @@ class HybridChunker:
                 threshold_percentile=semantic_threshold_percentile,
                 overlap=semantic_overlap,
                 unload_model_after_use=semantic_unload_model_after_use,
-                embedding_batch_size=semantic_embedding_batch_size
+                embedding_batch_size=semantic_embedding_batch_size,
             )
 
     def chunk_document(self, text: str, metadata: Optional[Dict] = None) -> List[Dict]:
@@ -55,22 +62,25 @@ class HybridChunker:
 
         if not self.use_semantic_merger or self.semantic is None:
             for i, chunk_text in enumerate(normalized_chunks):
-                final_chunks.append({
-                    'text': chunk_text,
-                    'metadata': {**metadata.copy(), "coarse_index": i}
-                })
+                final_chunks.append(
+                    {
+                        "text": chunk_text,
+                        "metadata": {**metadata.copy(), "coarse_index": i},
+                    }
+                )
             return final_chunks
 
         for i, chunk_text in enumerate(normalized_chunks):
             # Pass original metadata and coarse index to semantic chunker
-            sem_chunks_with_metadata = self.semantic.chunk(text=chunk_text, metadata=metadata.copy())
+            sem_chunks_with_metadata = self.semantic.chunk(
+                text=chunk_text, metadata=metadata.copy()
+            )
             for j, sem_chunk_dict in enumerate(sem_chunks_with_metadata):
                 # sem_chunk_dict already contains 'text' and 'metadata'
                 # Update metadata with coarse and semantic indices
-                sem_chunk_dict['metadata'].update({
-                    "coarse_index": i,
-                    "semantic_index": j
-                })
+                sem_chunk_dict["metadata"].update(
+                    {"coarse_index": i, "semantic_index": j}
+                )
                 final_chunks.append(sem_chunk_dict)
 
         return final_chunks

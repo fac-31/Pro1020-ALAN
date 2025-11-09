@@ -13,11 +13,16 @@ logger = logging.getLogger(__name__)
 
 
 class DailyDigestService:
-    def __init__(self, email_client: EmailConnection, ai_service: AIService, rag_engine: RAGService):
+    def __init__(
+        self,
+        email_client: EmailConnection,
+        ai_service: AIService,
+        rag_engine: RAGService,
+    ):
         self.email_client = email_client
         self.ai_service = ai_service
         self.rag_engine = rag_engine
-        self.users_file = 'users.json'
+        self.users_file = "users.json"
 
     # --------------------------
     # User management
@@ -25,7 +30,7 @@ class DailyDigestService:
     def load_users(self) -> List[Dict]:
         try:
             if os.path.exists(self.users_file):
-                with open(self.users_file, 'r') as f:
+                with open(self.users_file, "r") as f:
                     return json.load(f)
             return []
         except Exception as e:
@@ -34,7 +39,7 @@ class DailyDigestService:
 
     def save_users(self, users: List[Dict]):
         try:
-            with open(self.users_file, 'w') as f:
+            with open(self.users_file, "w") as f:
                 json.dump(users, f, indent=2)
         except Exception as e:
             logger.error(f"Error saving users: {e}")
@@ -74,7 +79,7 @@ class DailyDigestService:
                     "url": url,
                     "topics": metadata.get("topics", []),
                     "source": metadata.get("source"),
-                    "content": ""
+                    "content": "",
                 }
 
             # Append chunk text
@@ -87,7 +92,9 @@ class DailyDigestService:
     # --------------------------
     # Digest generation
     # --------------------------
-    async def generate_daily_digest(self, user_email: str, user_interests: List[str]) -> str:
+    async def generate_daily_digest(
+        self, user_email: str, user_interests: List[str]
+    ) -> str:
         try:
             # Create digest query based on user interests
             if user_interests:
@@ -103,7 +110,9 @@ class DailyDigestService:
             )
 
             if not raw_context:
-                logger.warning(f"No RAG context available for user {user_email}. Using fallback digest.")
+                logger.warning(
+                    f"No RAG context available for user {user_email}. Using fallback digest."
+                )
                 return self._generate_fallback_digest(user_interests)
 
             # Group chunks into articles
@@ -169,7 +178,9 @@ Format it as a daily briefing email that Alan would send.
     # Fallback
     # --------------------------
     def _generate_fallback_digest(self, user_interests: List[str]) -> str:
-        interests_text = ', '.join(user_interests) if user_interests else 'technology and AI'
+        interests_text = (
+            ", ".join(user_interests) if user_interests else "technology and AI"
+        )
 
         return f"""Good morning! ☕
 
@@ -212,7 +223,9 @@ P.S. Feel free to email me with any specific questions you'd like me to research
                         logger.warning(f"User missing email: {user}")
                         continue
 
-                    digest_content = await self.generate_daily_digest(user_email, user_interests)
+                    digest_content = await self.generate_daily_digest(
+                        user_email, user_interests
+                    )
 
                     success = self.email_client.send_email(
                         to_email=user_email,
@@ -226,7 +239,9 @@ P.S. Feel free to email me with any specific questions you'd like me to research
                         logger.error(f"Failed to send daily digest to {user_email}")
 
                 except Exception as e:
-                    logger.error(f"Error sending digest to {user.get('email', 'unknown')}: {e}")
+                    logger.error(
+                        f"Error sending digest to {user.get('email', 'unknown')}: {e}"
+                    )
                     continue
 
         except Exception as e:
@@ -310,7 +325,9 @@ P.S. Feel free to email me with any specific questions you'd like me to research
                 "total_users": len(users),
                 "users_with_interests": len([u for u in users if u.get("interests")]),
                 "all_interests": list(
-                    set([interest for u in users for interest in u.get("interests", [])])
+                    set(
+                        [interest for u in users for interest in u.get("interests", [])]
+                    )
                 ),
                 "users": users,
             }
