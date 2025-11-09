@@ -93,62 +93,66 @@ class DailyDigestService:
     
     async def generate_daily_digest(self, user_email: str, user_interests: List[str]) -> str:
         """
-        Generate a personalized daily digest for a user with enhanced error handling
+        Generate a clean, interest-agnostic daily digest.
         
         Args:
             user_email: User's email address
-            user_interests: List of user's interests
-            
+        
         Returns:
             Generated digest content
         """
         try:
-            if not user_interests:
-                raise DailyDigestError(
-                    message="User interests are required for digest generation",
-                    error_code="MISSING_USER_INTERESTS",
-                    details={"user_email": user_email}
+            # Fetch top articles from RAG
+            results = self.rag_service.search_documents(query=".", n_results=10)  # dot query = TODO: fix me
+
+            if not results:
+                return (
+                    "Good morning! ☕\n\n"
+                    "Here's your personalized daily digest from Alan. "
+                    "Today, I don't have enough new content to summarize, but I will keep updating my knowledge base "
+                    "with the latest articles and insights for you.\n\n"
+                    "Stay tuned for more updates!\n\nBest regards,\nAlan"
                 )
-            
-            # Get relevant content from RAG based on user interests
-            digest_content = []
-            
-            for interest in user_interests:
-                try:
-                    # Search for content related to this interest
-                    results = self.rag_service.search_documents(interest, n_results=2)
-                    
-                    for result in results:
-                        content = result['content'][:300]  # Limit content length
-                        digest_content.append(f"📚 {interest.title()}: {content}")
-                        
-                except Exception as e:
-                    logger.warning(f"Failed to get content for interest '{interest}': {e}")
-                    continue
-            
-            # Generate AI-powered digest summary
-            if digest_content:
-                content_text = "\n\n".join(digest_content)
-                
-                try:
-                    digest_summary = await self._generate_digest_summary(content_text, user_interests)
-                    return digest_summary
-                except Exception as e:
-                    logger.error(f"Failed to generate AI digest summary: {e}")
-                    # Fallback to basic digest
-                    return self._create_fallback_digest(content_text, user_interests)
-            else:
-                return self._create_empty_digest(user_interests)
-                
-        except DailyDigestError:
-            raise
+
+            # Deduplicate by article_id
+            seen_articles = set()
+            top_articles = []
+
+            for r in results:
+                article_id = r["metadata"].get("article_id")
+                if article_id and article_id not in seen_articles:
+                    seen_articles.add(article_id)
+                    top_articles.append(r)
+                if len(top_articles) >= 5:
+                    break
+
+            # Intro paragraph
+            digest_parts = [
+                "Good morning! ☕\n\n"
+                "Here's your personalized daily digest from Alan. "
+                "Today, I have curated the top articles and insights from our knowledge base for you:\n"
+            ]
+
+            # Format each article
+            for idx, article in enumerate(top_articles, start=1):
+                title = article["metadata"].get("title", "Untitled")
+                url = article["metadata"].get("url", "N/A")
+                summary = article["content"][:300].strip()  # first 300 chars
+                digest_parts.append(f"{idx}. Title: {title}\n   URL: {url}\n   Summary: {summary}\n")
+
+            digest_parts.append("\nHave a great day!\n\nBest regards,\nAlan")
+
+            return "\n\n".join(digest_parts)
+
         except Exception as e:
             logger.error(f"Failed to generate daily digest for {user_email}: {e}")
-            raise DailyDigestError(
-                message=f"Failed to generate daily digest: {str(e)}",
-                error_code="DIGEST_GENERATION_FAILED",
-                details={"user_email": user_email, "interests": user_interests}
+            return (
+                "Good morning! ☕\n\n"
+                "I tried generating your daily digest but ran into some issues. "
+                "I'll keep working on bringing you the latest updates.\n\nBest regards,\nAlan"
             )
+
+
     
     async def _generate_digest_summary(self, content: str, user_interests: List[str]) -> str:
         """Generate AI-powered digest summary"""
