@@ -9,9 +9,9 @@ from .digest_service import DailyDigestService
 from .content_service import ContentEvaluationService
 
 __all__ = [
-    'EmailService',
-    'AIService', 
-    'RAGService',
-    'DailyDigestService',
-    'ContentEvaluationService'
+    "EmailService",
+    "AIService",
+    "RAGService",
+    "DailyDigestService",
+    "ContentEvaluationService",
 ]

@@ -7,9 +7,15 @@ from fastapi.responses import JSONResponse
 
 from core.config import settings
 from core.exceptions import convert_to_http_exception
-from email_modules.email_client_init import initialize_email_client, shutdown_email_client
+from email_modules.email_client_init import (
+    initialize_email_client,
+    shutdown_email_client,
+)
 from routers.subscribers import router as subscribers_router
 from routers.rag import router as rag_router
+from routers.content import router as content_router
+from routers.ai import router as ai_router
+from routers.fetch import router as fetch_router
 from services.rag_service import RAGService
 from services.digest_service import DailyDigestService
 from services.ai_service import AIService
@@ -18,16 +24,13 @@ from services.content_service import ContentEvaluationService
 
 # Configure logging
 logging.basicConfig(
-    level=getattr(logging, settings.log_level),
-    format=settings.log_format
+    level=getattr(logging, settings.log_level), format=settings.log_format
 )
 logger = logging.getLogger(__name__)
 
 # --- FastAPI App Setup ---
 app = FastAPI(
-    title=settings.app_name,
-    version=settings.app_version,
-    debug=settings.debug
+    title=settings.app_name, version=settings.app_version, debug=settings.debug
 )
 
 # Add CORS middleware
@@ -39,6 +42,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.on_event("startup")
 async def startup_event():
     """Initialize all services with enhanced error handling"""
@@ -46,39 +50,42 @@ async def startup_event():
         # Initialize email service
         app.state.email_service = EmailService()
         logger.info("Email service initialized successfully")
-        
+
         # Initialize RAG service
         app.state.rag_engine = RAGService()
         logger.info("RAG service initialized successfully")
-        
+
         # Initialize AI service
         app.state.ai_service = AIService(rag_service=app.state.rag_engine)
         logger.info("AI service initialized successfully")
-        
+
         # Initialize content evaluation service
         app.state.content_service = ContentEvaluationService()
         logger.info("Content evaluation service initialized successfully")
-        
+
         # Initialize daily digest service
         app.state.digest_service = DailyDigestService(
             email_service=app.state.email_service,
             ai_service=app.state.ai_service,
-            rag_service=app.state.rag_engine
+            rag_service=app.state.rag_engine,
         )
         logger.info("Daily digest service initialized successfully")
-        
+
         # Start daily digest task
-        app.state.digest_task = asyncio.create_task(app.state.digest_service.daily_digest_task())
+        app.state.digest_task = asyncio.create_task(
+            app.state.digest_service.daily_digest_task()
+        )
         logger.info("Daily digest task started")
-        
+
         # Initialize email client for backward compatibility
         await initialize_email_client(app)
-        
+
     except Exception as e:
         logger.error(f"Failed to initialize services: {e}")
         # Convert to HTTP exception for better error handling
         http_exc = convert_to_http_exception(e)
         raise http_exc
+
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -86,7 +93,7 @@ async def shutdown_event():
     try:
         # Shutdown email client
         await shutdown_email_client(app)
-        
+
         # Shutdown daily digest task
         if hasattr(app.state, "digest_task"):
             app.state.digest_task.cancel()
@@ -94,17 +101,22 @@ async def shutdown_event():
                 await app.state.digest_task
             except asyncio.CancelledError:
                 logger.info("Daily digest task cancelled successfully")
-        
+
         logger.info("All services shut down successfully")
-        
+
     except Exception as e:
         logger.error(f"Error during shutdown: {e}")
+
 
 # --- API Endpoints ---
 
 # Include routers
 app.include_router(subscribers_router)
 app.include_router(rag_router)
+app.include_router(content_router)
+app.include_router(ai_router)
+app.include_router(fetch_router)
+
 
 @app.get("/")
 def home():
@@ -116,7 +128,7 @@ def home():
         "environment": settings.environment,
         "features": [
             "Email-based AI assistant",
-            "RAG-powered responses", 
+            "RAG-powered responses",
             "Daily digest automation",
             "Document knowledge base",
             "News article ingestion",
@@ -124,63 +136,66 @@ def home():
             "Email attachment processing",
             "Link content extraction",
             "LangSmith tracking",
-            "Enhanced error handling"
-        ]
+            "Enhanced error handling",
+        ],
     }
+
 
 @app.get("/health")
 def health_check():
     """Enhanced health check endpoint with service status"""
     try:
         services = {}
-        
+
         # Check each service status
         if hasattr(app.state, "email_service"):
             services["email_service"] = app.state.email_service.get_service_status()
-        
+
         if hasattr(app.state, "rag_engine"):
             services["rag_engine"] = app.state.rag_engine.get_service_status()
-        
+
         if hasattr(app.state, "ai_service"):
             services["ai_service"] = app.state.ai_service.get_service_status()
-        
+
         if hasattr(app.state, "content_service"):
             services["content_service"] = app.state.content_service.get_service_status()
-        
+
         if hasattr(app.state, "digest_service"):
             services["digest_service"] = app.state.digest_service.get_service_status()
-        
+
         # Determine overall health
         overall_status = "healthy"
         for service_name, service_status in services.items():
             if service_status.get("status") != "healthy":
                 overall_status = "degraded"
                 break
-        
+
         return {
             "status": overall_status,
             "version": settings.app_version,
             "environment": settings.environment,
             "services": services,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
-        
+
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         return {
             "status": "unhealthy",
             "error": str(e),
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
+
 
 @app.get("/processed_messages")
 def get_processed_messages():
     """Return the list of processed incoming email message IDs."""
     if not getattr(app.state, "email_client", None):
         raise HTTPException(status_code=503, detail="Email service is not available.")
-    
+
     processed_ids = app.state.email_client.load_processed_ids()
     return JSONResponse(content={"processed_message_ids": processed_ids})
+
 
 # --- Middleware ---
 app.add_middleware(

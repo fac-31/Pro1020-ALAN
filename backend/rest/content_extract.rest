@@ -1,0 +1,6 @@
+POST http://127.0.0.1:8000/content/extract
+Content-Type: application/json
+
+{
+  "url": "https://fly.io/blog/everyone-write-an-agent/"
+}
