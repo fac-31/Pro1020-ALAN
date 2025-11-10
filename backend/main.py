@@ -1,16 +1,17 @@
 import asyncio
 import logging
 from datetime import datetime
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+# Load environment variables from .env file
+load_dotenv()
+
 from core.config import settings
 from core.exceptions import convert_to_http_exception
-from email_modules.email_client_init import (
-    initialize_email_client,
-    shutdown_email_client,
-)
+from email_modules.background_tasks import email_polling_task
 from routers.subscribers import router as subscribers_router
 from routers.rag import router as rag_router
 from routers.content import router as content_router
@@ -21,6 +22,7 @@ from services.digest_service import DailyDigestService
 from services.ai_service import AIService
 from services.email_service import EmailService
 from services.content_service import ContentEvaluationService
+from ai_modules.conversation_memory import ConversationMemory
 
 # Configure logging
 logging.basicConfig(
@@ -47,42 +49,41 @@ app.add_middleware(
 async def startup_event():
     """Initialize all services with enhanced error handling"""
     try:
-        # Initialize email service
-        app.state.email_service = EmailService()
-        logger.info("Email service initialized successfully")
-
-        # Initialize RAG service
+        # Initialize services with clear dependencies
         app.state.rag_engine = RAGService()
-        logger.info("RAG service initialized successfully")
-
-        # Initialize AI service
         app.state.ai_service = AIService(rag_service=app.state.rag_engine)
-        logger.info("AI service initialized successfully")
+        app.state.conversation_memory = ConversationMemory()
 
-        # Initialize content evaluation service
+        app.state.email_service = EmailService(
+            rag_service=app.state.rag_engine,
+            ai_service=app.state.ai_service,
+            memory=app.state.conversation_memory,
+        )
+
         app.state.content_service = ContentEvaluationService()
-        logger.info("Content evaluation service initialized successfully")
-
-        # Initialize daily digest service
         app.state.digest_service = DailyDigestService(
             email_service=app.state.email_service,
             ai_service=app.state.ai_service,
             rag_service=app.state.rag_engine,
         )
-        logger.info("Daily digest service initialized successfully")
 
-        # Start daily digest task
+        logger.info("All services initialized successfully")
+
+        # Start background tasks
         app.state.digest_task = asyncio.create_task(
             app.state.digest_service.daily_digest_task()
         )
         logger.info("Daily digest task started")
 
-        # Initialize email client for backward compatibility
-        await initialize_email_client(app)
+        app.state.polling_task = asyncio.create_task(
+            email_polling_task(
+                email_client=app.state.email_service, rag_service=app.state.rag_engine
+            )
+        )
+        logger.info("Email polling task started")
 
     except Exception as e:
         logger.error(f"Failed to initialize services: {e}")
-        # Convert to HTTP exception for better error handling
         http_exc = convert_to_http_exception(e)
         raise http_exc
 
@@ -91,10 +92,14 @@ async def startup_event():
 async def shutdown_event():
     """Gracefully shut down all services"""
     try:
-        # Shutdown email client
-        await shutdown_email_client(app)
+        # Shutdown background tasks
+        if hasattr(app.state, "polling_task"):
+            app.state.polling_task.cancel()
+            try:
+                await app.state.polling_task
+            except asyncio.CancelledError:
+                logger.info("Email polling task cancelled successfully")
 
-        # Shutdown daily digest task
         if hasattr(app.state, "digest_task"):
             app.state.digest_task.cancel()
             try:
@@ -190,10 +195,10 @@ def health_check():
 @app.get("/processed_messages")
 def get_processed_messages():
     """Return the list of processed incoming email message IDs."""
-    if not getattr(app.state, "email_client", None):
+    if not getattr(app.state, "email_service", None):
         raise HTTPException(status_code=503, detail="Email service is not available.")
 
-    processed_ids = app.state.email_client.load_processed_ids()
+    processed_ids = app.state.email_service.load_processed_ids()
     return JSONResponse(content={"processed_message_ids": processed_ids})
 
 

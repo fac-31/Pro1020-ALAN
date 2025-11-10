@@ -1,30 +1,20 @@
 import logging
-from typing import List
+from typing import List, Dict
+from services.ai_service import AIService
+from ai_modules.conversation_memory import ConversationMemory
 
 logger = logging.getLogger(__name__)
 
 
 class ReplyGenerator:
-    def __init__(self):
-        # Use lazy imports to avoid circular dependency
-        self.ai_service = None
-        self.memory = None
-
-    def _get_ai_service(self):
-        """Lazy import of AIService to avoid circular dependency"""
-        if self.ai_service is None:
-            from services.ai_service import AIService
-
-            self.ai_service = AIService()
-        return self.ai_service
-
-    def _get_memory(self):
-        """Lazy import of ConversationMemory to avoid circular dependency"""
-        if self.memory is None:
-            from ai_modules.conversation_memory import ConversationMemory
-
-            self.memory = ConversationMemory()
-        return self.memory
+    def __init__(self, ai_service: AIService, memory: ConversationMemory):
+        """
+        Initializes the ReplyGenerator with required services.
+        :param ai_service: An instance of AIService.
+        :param memory: An instance of ConversationMemory.
+        """
+        self.ai_service = ai_service
+        self.memory = memory
 
     def generate_reply(
         self,
@@ -36,17 +26,13 @@ class ReplyGenerator:
     ) -> str:
         """Generate an AI-powered reply using OpenAI and LangChain"""
         try:
-            # Get services using lazy loading
-            ai_service = self._get_ai_service()
-            memory = self._get_memory()
-
             # Get conversation history for context
-            conversation_history = memory.get_conversation_history(
+            conversation_history = self.memory.get_conversation_history(
                 sender_email, limit=5
             )
 
             # Generate AI reply
-            reply = ai_service.generate_email_reply(
+            reply = self.ai_service.generate_email_reply(
                 sender_name=sender_name,
                 sender_email=sender_email,
                 subject=subject,
@@ -56,14 +42,14 @@ class ReplyGenerator:
             )
 
             # Store the incoming message and reply in memory
-            memory.add_message(
+            self.memory.add_message(
                 sender_email=sender_email,
                 message_type="incoming",
                 content=f"Subject: {subject}\n\n{body}",
                 subject=subject,
             )
 
-            memory.add_message(
+            self.memory.add_message(
                 sender_email=sender_email,
                 message_type="outgoing",
                 content=reply,
@@ -81,8 +67,8 @@ class ReplyGenerator:
     def generate_welcome_email(self, name: str, interests: List[str]) -> str:
         """Generate a personalized welcome email for new subscribers"""
         try:
-            ai_service = self._get_ai_service()
-            return ai_service.generate_welcome_email(name, interests)
+            # The AIService is already initialized
+            return self.ai_service.generate_welcome_email(name, interests)
         except Exception as e:
             logger.error(f"Error generating welcome email: {e}")
             return self._generate_fallback_welcome(name, interests)

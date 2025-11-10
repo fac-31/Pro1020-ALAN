@@ -10,6 +10,9 @@ from email_modules.connection import EmailConnection
 from email_modules.parser import EmailParser
 from email_modules.message_tracker import MessageTracker
 from email_modules.reply_generator import ReplyGenerator
+from services.rag_service import RAGService
+from services.ai_service import AIService
+from ai_modules.conversation_memory import ConversationMemory
 from email_modules.utils import clean_str, setup_utf8_encoding
 
 # Setup UTF-8 encoding
@@ -21,7 +24,12 @@ logger = logging.getLogger(__name__)
 class EmailService:
     """Enhanced email service with better error handling and configuration management"""
 
-    def __init__(self):
+    def __init__(
+        self,
+        rag_service: RAGService,
+        ai_service: AIService,
+        memory: ConversationMemory,
+    ):
         """Initialize email service with configuration from settings"""
         try:
             self.gmail_user = settings.gmail_user
@@ -38,7 +46,9 @@ class EmailService:
             self.connection = EmailConnection(self.gmail_user, self.gmail_app_pass)
             self.parser = EmailParser()
             self.tracker = MessageTracker()
-            self.reply_generator = ReplyGenerator()
+            self.reply_generator = ReplyGenerator(
+                ai_service=ai_service, memory=memory
+            )
 
             logger.info("Email service initialized successfully")
 
