@@ -25,3 +25,5 @@ faiss-cpu==1.12.0
 langsmith>=0.3.45
 requests>=2.32.5
 beautifulsoup4==4.12.3
+PyMuPDF==1.24.1
+python-multipart==0.0.9

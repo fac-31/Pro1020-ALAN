@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import axios from 'axios';
+import { useDropzone } from 'react-dropzone';
 
 const Upload = () => {
-  const [mode, setMode] = useState('document'); // "document" or "article"
+  const [mode, setMode] = useState('document'); // "document", "article", or "pdf"
   const [form, setForm] = useState({
     filename: '',
     content: '',
@@ -10,7 +11,23 @@ const Upload = () => {
     title: '',
     url: '',
   });
+  const [pdfFile, setPdfFile] = useState(null); // For PDF uploads
   const [status, setStatus] = useState(''); // show success/error
+
+  const onDrop = useCallback((acceptedFiles) => {
+    // We only allow single PDF uploads
+    if (acceptedFiles.length > 0) {
+      setPdfFile(acceptedFiles[0]);
+    }
+  }, []);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      'application/pdf': ['.pdf'],
+    },
+    multiple: false,
+  });
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -29,7 +46,7 @@ const Upload = () => {
           topics: form.topics.split(',').map((t) => t.trim()),
         });
         setStatus(res.data.message);
-      } else {
+      } else if (mode === 'article') {
         const res = await axios.post('http://127.0.0.1:8000/news/add', {
           title: form.title,
           content: form.content,
@@ -37,6 +54,26 @@ const Upload = () => {
           topics: form.topics.split(',').map((t) => t.trim()),
         });
         setStatus(res.data.message);
+      } else if (mode === 'pdf') {
+        if (!pdfFile) {
+          setStatus('Please select a PDF file to upload.');
+          return;
+        }
+        const formData = new FormData();
+        formData.append('file', pdfFile);
+        formData.append('topics', form.topics);
+
+        const res = await axios.post(
+          'http://127.0.0.1:8000/documents/upload_pdf',
+          formData,
+          {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+            },
+          }
+        );
+        setStatus(res.data.message);
+        setPdfFile(null); // Reset after upload
       }
     } catch (err) {
       console.error(err);
@@ -73,6 +110,17 @@ const Upload = () => {
           />{' '}
           News Article
         </label>
+
+        <label>
+          <input
+            type='radio'
+            name='uploadType'
+            value='pdf'
+            checked={mode === 'pdf'}
+            onChange={() => setMode('pdf')}
+          />{' '}
+          PDF
+        </label>
       </div>
 
       <form onSubmit={handleSubmit} className='space-y-4'>
@@ -103,7 +151,7 @@ const Upload = () => {
               />
             </div>
           </>
-        ) : (
+        ) : mode === 'article' ? (
           <>
             <div>
               <label>Title</label>
@@ -142,6 +190,23 @@ const Upload = () => {
               />
             </div>
           </>
+        ) : (
+          <div>
+            <label>PDF File</label>
+            <div
+              {...getRootProps()}
+              className='border-2 border-dashed rounded p-10 text-center cursor-pointer'
+            >
+              <input {...getInputProps()} />
+              {isDragActive ? (
+                <p>Drop the PDF here ...</p>
+              ) : pdfFile ? (
+                <p>{pdfFile.name}</p>
+              ) : (
+                <p>Drag 'n' drop a PDF here, or click to select one</p>
+              )}
+            </div>
+          </div>
         )}
 
         <div>

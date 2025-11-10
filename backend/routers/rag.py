@@ -1,7 +1,8 @@
 import os
 import json
 import logging
-from fastapi import APIRouter, HTTPException, Depends, Request, UploadFile, File
+import fitz  # PyMuPDF
+from fastapi import APIRouter, HTTPException, Depends, Request, UploadFile, File, Form
 from pydantic import BaseModel
 from typing import List, Dict, Optional
 from services.rag_service import RAGService
@@ -82,6 +83,47 @@ async def upload_document(
     except Exception as e:
         logger.error(f"Error uploading document: {e}")
         raise HTTPException(status_code=500, detail=f"Error uploading document: {str(e)}")
+
+@router.post("/documents/upload_pdf", tags=["Documents"])
+async def upload_pdf_document(
+    rag_engine: RAGService = Depends(get_rag_engine),
+    file: UploadFile = File(...),
+    topics: str = Form("")
+):
+    """Upload a PDF document to Alan's knowledge base"""
+    try:
+        if not file.filename.lower().endswith(".pdf"):
+            raise HTTPException(status_code=400, detail="Invalid file type. Only PDF files are accepted.")
+
+        # Read PDF content
+        pdf_content = await file.read()
+        
+        # Extract text from PDF using PyMuPDF
+        text_content = ""
+        with fitz.open(stream=pdf_content, filetype="pdf") as doc:
+            for page in doc:
+                text_content += page.get_text()
+
+        # Split topics string into a list
+        topic_list = [topic.strip() for topic in topics.split(',') if topic.strip()]
+
+        # Add document to RAG engine
+        success = rag_engine.add_user_document(
+            content=text_content,
+            filename=file.filename,
+            user_email="system",
+            topics=topic_list
+        )
+        
+        if success:
+            return {"status": "success", "message": f"PDF document '{file.filename}' uploaded and processed successfully"}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to process and upload PDF document")
+            
+    except Exception as e:
+        logger.error(f"Error uploading PDF document: {e}")
+        raise HTTPException(status_code=500, detail=f"Error uploading PDF: {str(e)}")
+
 
 @router.post("/news/add", tags=["News"])
 async def add_news_article(
