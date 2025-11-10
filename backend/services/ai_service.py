@@ -233,6 +233,7 @@ class AIService:
         - Use a friendly, professional tone
         - Provide actionable advice when possible
         - If you don't know something, admit it and suggest alternatives
+        - Never make something up if you are unsure
         - Always be helpful and supportive
         - Tailor responses based on user's interests when provided
         - Leverage relevant context from the knowledge base when available
