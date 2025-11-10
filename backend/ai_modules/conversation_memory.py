@@ -15,10 +15,12 @@ class ConversationMemory:
     def _load_conversations(self) -> Dict[str, List[Dict]]:
         """Load conversation history from file"""
         try:
-            if os.path.exists(self.memory_file):
-                with open(self.memory_file, "r") as f:
-                    return json.load(f)
-            return {}
+            if not os.path.exists(self.memory_file):
+                with open(self.memory_file, "w") as f:
+                    json.dump({}, f)
+                logger.info(f"Created conversation memory file at {self.memory_file}")
+            with open(self.memory_file, "r") as f:
+                return json.load(f)
         except Exception as e:
             logger.error(f"Error loading conversation memory: {e}")
             return {}
@@ -26,8 +28,11 @@ class ConversationMemory:
     def _save_conversations(self):
         """Save conversation history to file"""
         try:
+            file_path = os.path.abspath(self.memory_file)
+            logger.info(f"Saving conversation memory to {file_path}")
             with open(self.memory_file, "w") as f:
                 json.dump(self.conversations, f, indent=2)
+            logger.info("Successfully saved conversation memory.")
         except Exception as e:
             logger.error(f"Error saving conversation memory: {e}")
 
@@ -105,7 +110,10 @@ class ConversationMemory:
 
         context_lines = []
         for msg in history:
-            role = "Human" if msg["type"] == "incoming" else "Alan"
+            if msg["type"] == "incoming":
+                role = "user" if sender_email == "frontend-user" else "Human"
+            else:
+                role = "Alan"
             timestamp = msg["timestamp"][:19]  # Remove microseconds
             context_lines.append(f"[{timestamp}] {role}: {msg['content'][:200]}...")
 

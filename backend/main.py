@@ -82,6 +82,10 @@ async def startup_event():
         )
         logger.info("Email polling task started")
 
+        # Initialize conversation memory
+        app.state.memory = ConversationMemory()
+        logger.info("Conversation memory initialized successfully")
+
     except Exception as e:
         logger.error(f"Failed to initialize services: {e}")
         http_exc = convert_to_http_exception(e)
