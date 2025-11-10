@@ -184,6 +184,7 @@ class RAGService:
                             "topics": doc.get("topics"),
                             "source": doc.get("source"),
                             "url": doc.get("url"),
+                            "user_email": doc.get("user_email"),
                             "added_at": datetime.now().isoformat(),
                         }
                     )
@@ -355,6 +356,7 @@ class RAGService:
                     "topics": topics,
                     "source": source,
                     "url": url,
+                    "user_email": "system",
                 },
             )
 
@@ -372,6 +374,7 @@ class RAGService:
                         "url": url,
                         "article_id": article_id,
                         "chunk_id": idx,
+                        "user_email": "system",
                     }
                 )
 
@@ -389,22 +392,47 @@ class RAGService:
     # USER DOCS
     # -----------------------------
     def add_user_document(
-        self, content: str, title: str = "", topics: List[str] = None
+        self, content: str, title: str = "", topics: List[str] = None, user_email: str = "system", source: str = "user"
     ) -> bool:
+        """
+        Ingest a full document:
+        - chunk into semantic chunks
+        - assign shared doc_id
+        - assign chunk_id
+        """
         try:
-            article_id = str(abs(hash(content + title)))
+            from chunk_modules.hybrid_chunker import HybridChunker
 
-            doc = {
-                "content": content,
-                "title": title or "User Document",
-                "topics": topics or [],
-                "source": "user",
-                "url": None,
-                "article_id": article_id,
-                "chunk_id": 0,
-            }
+            chunker = HybridChunker(use_semantic_merger=settings.use_semantic_merger)
 
-            return self.add_documents([doc])
+            full_text = f"{title}\n\n{content}"
+            chunks = chunker.chunk_document(
+                full_text,
+                metadata={
+                    "title": title,
+                    "topics": topics,
+                    "source": source,
+                    "user_email": "system",
+                },
+            )
+            doc_id = str(abs(hash(content + title)))
+            documents = []
+            for idx, ch in enumerate(chunks):
+                # Extract metadata from the chunk, which already contains title, topics, etc.
+                chunk_meta = ch.get("metadata", {})
+                documents.append(
+                    {
+                        "content": ch["text"],
+                        "title": chunk_meta.get("title") or "User Document",
+                        "topics": chunk_meta.get("topics") or [],
+                        "source": chunk_meta.get("source", "user"),
+                        "article_id": doc_id,
+                        "chunk_id": idx,
+                        "user_email": user_email,
+                    }
+                )
+
+            return self.add_documents(documents)
 
         except Exception as e:
             logger.error(f"Add user doc failed: {e}")

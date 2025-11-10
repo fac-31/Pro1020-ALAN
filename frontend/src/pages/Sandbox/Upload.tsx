@@ -13,6 +13,7 @@ const Upload = () => {
   });
   const [pdfFile, setPdfFile] = useState(null); // For PDF uploads
   const [status, setStatus] = useState(''); // show success/error
+  const [isLoading, setIsLoading] = useState(false);
 
   const onDrop = useCallback((acceptedFiles) => {
     // We only allow single PDF uploads
@@ -37,11 +38,12 @@ const Upload = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setStatus('');
+    setIsLoading(true);
 
     try {
       if (mode === 'document') {
         const res = await axios.post('http://127.0.0.1:8000/documents/upload', {
-          filename: form.filename,
+          title: form.filename,
           content: form.content,
           topics: form.topics.split(',').map((t) => t.trim()),
         });
@@ -57,6 +59,7 @@ const Upload = () => {
       } else if (mode === 'pdf') {
         if (!pdfFile) {
           setStatus('Please select a PDF file to upload.');
+          setIsLoading(false); // Reset loading state if no file
           return;
         }
         const formData = new FormData();
@@ -80,6 +83,8 @@ const Upload = () => {
       setStatus(
         err.response?.data?.detail || 'An error occurred while uploading.'
       );
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -221,8 +226,38 @@ const Upload = () => {
           />
         </div>
 
-        <button type='submit' className='w-full border rounded p-2'>
-          Upload
+        <button
+          type='submit'
+          className='w-full border rounded p-2 flex justify-center items-center'
+          disabled={isLoading}
+        >
+          {isLoading && mode === 'pdf' ? (
+            <>
+              <svg
+                className='animate-spin -ml-1 mr-3 h-5 w-5 text-white'
+                xmlns='http://www.w3.org/2000/svg'
+                fill='none'
+                viewBox='0 0 24 24'
+              >
+                <circle
+                  className='opacity-25'
+                  cx='12'
+                  cy='12'
+                  r='10'
+                  stroke='currentColor'
+                  strokeWidth='4'
+                ></circle>
+                <path
+                  className='opacity-75'
+                  fill='currentColor'
+                  d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z'
+                ></path>
+              </svg>
+              Uploading PDF...
+            </>
+          ) : (
+            'Upload'
+          )}
         </button>
       </form>
 

@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 # --- Pydantic Models ---
 class DocumentUpload(BaseModel):
     content: str
-    filename: str
+    title: str
     topics: List[str] = []
 
 
@@ -96,15 +96,15 @@ async def upload_document(
     try:
         success = rag_engine.add_user_document(
             content=document.content,
-            filename=document.filename,
-            user_email="system",  # Could be enhanced to track user
+            title=document.title,
             topics=document.topics,
+            user_email="system",  # Could be enhanced to track user
         )
 
         if success:
             return {
                 "status": "success",
-                "message": f"Document '{document.filename}' uploaded successfully",
+                "message": f"Document '{document.title}' uploaded successfully",
             }
         else:
             raise HTTPException(status_code=500, detail="Failed to upload document")
@@ -114,7 +114,7 @@ async def upload_document(
         raise HTTPException(
             status_code=500, detail=f"Error uploading document: {str(e)}"
         )
-
+    
 @router.post("/documents/upload_pdf", tags=["Documents"])
 async def upload_pdf_document(
     rag_engine: RAGService = Depends(get_rag_engine),
@@ -141,50 +141,9 @@ async def upload_pdf_document(
         # Add document to RAG engine
         success = rag_engine.add_user_document(
             content=text_content,
-            filename=file.filename,
+            title=file.filename,
+            topics=topic_list,
             user_email="system",
-            topics=topic_list
-        )
-        
-        if success:
-            return {"status": "success", "message": f"PDF document '{file.filename}' uploaded and processed successfully"}
-        else:
-            raise HTTPException(status_code=500, detail="Failed to process and upload PDF document")
-            
-    except Exception as e:
-        logger.error(f"Error uploading PDF document: {e}")
-        raise HTTPException(status_code=500, detail=f"Error uploading PDF: {str(e)}")
-
-
-@router.post("/documents/upload_pdf", tags=["Documents"])
-async def upload_pdf_document(
-    rag_engine: RAGService = Depends(get_rag_engine),
-    file: UploadFile = File(...),
-    topics: str = Form("")
-):
-    """Upload a PDF document to Alan's knowledge base"""
-    try:
-        if not file.filename.lower().endswith(".pdf"):
-            raise HTTPException(status_code=400, detail="Invalid file type. Only PDF files are accepted.")
-
-        # Read PDF content
-        pdf_content = await file.read()
-        
-        # Extract text from PDF using PyMuPDF
-        text_content = ""
-        with fitz.open(stream=pdf_content, filetype="pdf") as doc:
-            for page in doc:
-                text_content += page.get_text()
-
-        # Split topics string into a list
-        topic_list = [topic.strip() for topic in topics.split(',') if topic.strip()]
-
-        # Add document to RAG engine
-        success = rag_engine.add_user_document(
-            content=text_content,
-            filename=file.filename,
-            user_email="system",
-            topics=topic_list
         )
         
         if success:
