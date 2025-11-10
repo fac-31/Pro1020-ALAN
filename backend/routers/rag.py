@@ -8,6 +8,8 @@ from typing import List, Dict, Optional
 from services.rag_service import RAGService
 from email_modules.daily_digest import DailyDigestService
 from services.ai_service import AIService
+from ai_modules.conversation_memory import ConversationMemory
+
 
 # Add parent directory to path to allow sibling imports
 import sys
@@ -82,6 +84,15 @@ def get_digest_service(request: Request) -> DailyDigestService:
             status_code=503, detail="Daily digest service is not available."
         )
     return request.app.state.digest_service
+
+
+def get_memory(request: Request) -> "ConversationMemory":
+    """Dependency to get the conversation memory from application state."""
+    if not hasattr(request.app.state, "memory") or not request.app.state.memory:
+        raise HTTPException(
+            status_code=503, detail="Conversation memory is not available."
+        )
+    return request.app.state.memory
 
 
 # --- API Endpoints ---
@@ -322,12 +333,38 @@ async def get_digest_stats(
         )
 
 
+@router.get("/chat-history/{sender_email}", tags=["RAG"])
+async def get_chat_history(
+    sender_email: str, memory: ConversationMemory = Depends(get_memory)
+):
+    """Get chat history for a specific sender"""
+    try:
+        history = memory.get_conversation_history(sender_email, limit=20)
+        return {"status": "success", "history": history}
+
+    except Exception as e:
+        logger.error(f"Error getting chat history: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Error getting chat history: {str(e)}"
+        )
+
+
 @router.post("/test-rag", tags=["RAG"])
 async def test_rag_response(
-    query_request: QueryRequest, ai_service: AIService = Depends(get_ai_service)
+    query_request: QueryRequest,
+    ai_service: AIService = Depends(get_ai_service),
+    memory: ConversationMemory = Depends(get_memory),
 ):
     """Test RAG-powered response generation"""
     try:
+        # Store incoming message
+        memory.add_message(
+            sender_email="frontend-user",
+            message_type="incoming",
+            content=query_request.query,
+            subject="Frontend Chat",
+        )
+
         # Generate a test response using RAG
         # Access the RAG engine attached to the AI service
         rag_engine = ai_service.rag_engine
@@ -337,8 +374,15 @@ async def test_rag_response(
             n_results=query_request.n_results,
         )
 
+        # Get conversation history
+        conversation_history = memory.get_conversation_context("frontend-user")
+
         # Create a test prompt
-        test_prompt = f"""Based on the following information from my knowledge base:
+        test_prompt = f"""Here is the conversation history:
+
+{conversation_history}
+
+Based on the following information from my knowledge base:
 
 {context}
 
@@ -360,11 +404,22 @@ Be informative, concise, and helpful."""
 
         reply = response.choices[0].message.content.strip()
 
+        # Store outgoing message
+        memory.add_message(
+            sender_email="frontend-user",
+            message_type="outgoing",
+            content=reply,
+            subject="Frontend Chat Response",
+        )
+
+        history = memory.get_conversation_history("frontend-user", limit=20)
+
         return {
             "status": "success",
             "query": query_request.query,
             "context_used": context,
             "response": reply,
+            "history": history,
         }
 
     except Exception as e:

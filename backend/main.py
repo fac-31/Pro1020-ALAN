@@ -21,6 +21,7 @@ from services.digest_service import DailyDigestService
 from services.ai_service import AIService
 from services.email_service import EmailService
 from services.content_service import ContentEvaluationService
+from ai_modules.conversation_memory import ConversationMemory
 
 # Configure logging
 logging.basicConfig(
@@ -79,6 +80,10 @@ async def startup_event():
 
         # Initialize email client for backward compatibility
         await initialize_email_client(app)
+
+        # Initialize conversation memory
+        app.state.memory = ConversationMemory()
+        logger.info("Conversation memory initialized successfully")
 
     except Exception as e:
         logger.error(f"Failed to initialize services: {e}")

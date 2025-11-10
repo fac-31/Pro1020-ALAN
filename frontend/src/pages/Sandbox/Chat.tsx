@@ -1,10 +1,47 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
 
 const Chat = () => {
   const [messages, setMessages] = useState([
     { id: 1, text: '', fixed: false, response: '' },
   ]);
+
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        const res = await axios.get(
+          'http://127.0.0.1:8000/chat-history/frontend-user'
+        );
+        const history = res.data.history || [];
+        if (history.length > 0) {
+          const formattedMessages = [];
+          for (let i = 0; i < history.length; i++) {
+            if (history[i].type === 'incoming') {
+              const message = {
+                id: new Date(history[i].timestamp).getTime(),
+                text: history[i].content,
+                fixed: true,
+                response: '',
+              };
+              if (i + 1 < history.length && history[i + 1].type === 'outgoing') {
+                message.response = history[i + 1].content;
+                i++;
+              }
+              formattedMessages.push(message);
+            }
+          }
+          setMessages(
+            formattedMessages.concat([
+              { id: Date.now(), text: '', fixed: false, response: '' },
+            ])
+          );
+        }
+      } catch (err) {
+        console.error('Error fetching chat history:', err);
+      }
+    };
+    fetchHistory();
+  }, []);
 
   const handleKeyDown = async (e, id) => {
     if (e.key === 'Enter') {
@@ -24,13 +61,30 @@ const Chat = () => {
           n_results: 3,
         });
 
-        const reply = res.data.response || '(no response)';
-
-        setMessages((prev) =>
-          prev
-            .map((msg) => (msg.id === id ? { ...msg, response: reply } : msg))
-            .concat({ id: Date.now(), text: '', fixed: false, response: '' })
-        );
+        const history = res.data.history || [];
+        if (history.length > 0) {
+          const formattedMessages = [];
+          for (let i = 0; i < history.length; i++) {
+            if (history[i].type === 'incoming') {
+              const message = {
+                id: new Date(history[i].timestamp).getTime(),
+                text: history[i].content,
+                fixed: true,
+                response: '',
+              };
+              if (i + 1 < history.length && history[i + 1].type === 'outgoing') {
+                message.response = history[i + 1].content;
+                i++;
+              }
+              formattedMessages.push(message);
+            }
+          }
+          setMessages(
+            formattedMessages.concat([
+              { id: Date.now(), text: '', fixed: false, response: '' },
+            ])
+          );
+        }
       } catch (err) {
         console.error('Error fetching response:', err);
         setMessages((prev) =>
